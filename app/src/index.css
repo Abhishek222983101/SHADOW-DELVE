@@ -1,0 +1,259 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+:root {
+  --color-abyss: #0a0a0f;
+  --color-ember: #ff6b35;
+  --color-gold: #ffd700;
+  --color-fog: #2a2a3d;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Press Start 2P', 'Courier New', monospace;
+  background: #050508;
+  color: #e0e0e0;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Pixel perfect canvas rendering */
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Custom scrollbar - pixel style */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3d3d55;
+  border: 2px solid #0a0a0f;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #50506d;
+}
+
+/* Wallet adapter overrides - pixel style */
+.wallet-adapter-button {
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 10px !important;
+  background: #2a2a3a !important;
+  border: 3px solid #ff6b35 !important;
+  border-radius: 0 !important;
+  box-shadow: 3px 3px 0 #000 !important;
+  transition: all 0.1s ease !important;
+}
+
+.wallet-adapter-button:hover {
+  background: #3a3a4a !important;
+  transform: translate(-2px, -2px) !important;
+  box-shadow: 5px 5px 0 #000 !important;
+}
+
+.wallet-adapter-button:active {
+  transform: translate(1px, 1px) !important;
+  box-shadow: 2px 2px 0 #000 !important;
+}
+
+.wallet-adapter-modal-wrapper {
+  background: rgba(5, 5, 8, 0.95) !important;
+}
+
+.wallet-adapter-modal-container {
+  background: #1a1a2a !important;
+  border: 4px solid #333 !important;
+  border-radius: 0 !important;
+  box-shadow: 8px 8px 0 #000 !important;
+}
+
+/* Game container */
+.game-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #050508;
+}
+
+/* Pixel button styles */
+.pixel-btn {
+  font-family: 'Press Start 2P', monospace;
+  background: linear-gradient(180deg, #ff6b35 0%, #c44d1c 100%);
+  color: #000;
+  border: 4px solid #000;
+  box-shadow: 4px 4px 0 #000;
+  padding: 12px 24px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.pixel-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 #000;
+}
+
+.pixel-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #000;
+}
+
+.pixel-btn:disabled {
+  background: #2a2a3a;
+  color: #666;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 2px 2px 0 #000;
+}
+
+/* Health bar pixel style */
+.pixel-health-bar {
+  background: #0a0a0f;
+  border: 3px solid #333;
+  box-shadow: inset 2px 2px 0 #000;
+}
+
+.pixel-health-bar .fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+/* Gold counter */
+.pixel-gold {
+  font-family: 'Press Start 2P', monospace;
+  color: #ffd700;
+  text-shadow: 2px 2px 0 #000;
+}
+
+/* Danger warning */
+@keyframes pixel-flash {
+  0%, 100% {
+    opacity: 1;
+    border-color: #ff0000;
+  }
+  50% {
+    opacity: 0.7;
+    border-color: #ff6666;
+  }
+}
+
+.pixel-danger {
+  animation: pixel-flash 0.5s ease-in-out infinite;
+  border: 4px solid #ff0000;
+  background: rgba(139, 0, 0, 0.9);
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+}
+
+/* Combat action buttons */
+.combat-action-btn {
+  font-family: 'Press Start 2P', monospace;
+  background: #1a1a2a;
+  border: 4px solid currentColor;
+  box-shadow: 4px 4px 0 #000;
+  transition: all 0.1s ease;
+}
+
+.combat-action-btn:hover:not(:disabled) {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 #000;
+}
+
+.combat-action-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #000;
+}
+
+.combat-action-btn.selected {
+  transform: scale(0.95);
+  box-shadow: 0 0 20px currentColor;
+}
+
+.combat-action-btn:disabled:not(.selected) {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Victory/defeat screens */
+.pixel-modal {
+  background: #1a1a2a;
+  border: 4px solid;
+  box-shadow: 8px 8px 0 #000;
+}
+
+/* CRT scanline effect (optional, for extra retro feel) */
+.crt-effect::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.1) 0px,
+    rgba(0, 0, 0, 0.1) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+}
+
+/* Typography */
+.text-pixel {
+  font-family: 'Press Start 2P', monospace;
+  text-shadow: 2px 2px 0 #000;
+}
+
+/* Glare animation for buttons */
+@keyframes glare {
+  from {
+    transform: translateX(-100%) skewX(-15deg);
+  }
+  to {
+    transform: translateX(200%) skewX(-15deg);
+  }
+}
+
+/* Bounce animation */
+@keyframes pixel-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.pixel-bounce {
+  animation: pixel-bounce 0.5s ease-in-out infinite;
+}
+
+/* Shake animation for damage */
+@keyframes pixel-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.pixel-shake {
+  animation: pixel-shake 0.1s ease-in-out 3;
+}

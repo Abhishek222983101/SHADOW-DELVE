@@ -1,0 +1,2183 @@
+{
+  "address": "GdsJcVVwzv8sMwyYuKXgKiYouPUEBPHQS54xD4Rd1kDh",
+  "metadata": {
+    "name": "shadow_delve",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Shadow Delve - A 2-player dungeon game with Private Ephemeral Rollups"
+  },
+  "instructions": [
+    {
+      "name": "check_proximity",
+      "docs": [
+        "Check proximity to enemy player"
+      ],
+      "discriminator": [
+        52,
+        230,
+        41,
+        123,
+        177,
+        119,
+        157,
+        4
+      ],
+      "accounts": [
+        {
+          "name": "match_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state.match_id",
+                "account": "MatchState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "opponent_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "opponent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "opponent"
+        }
+      ],
+      "args": [],
+      "returns": {
+        "defined": {
+          "name": "ProximityResult"
+        }
+      }
+    },
+    {
+      "name": "close_match",
+      "docs": [
+        "Close match and settle - returns rent"
+      ],
+      "discriminator": [
+        79,
+        174,
+        36,
+        80,
+        233,
+        185,
+        176,
+        239
+      ],
+      "accounts": [
+        {
+          "name": "match_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state.match_id",
+                "account": "MatchState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "collect_treasure",
+      "docs": [
+        "Collect treasure at current position"
+      ],
+      "discriminator": [
+        70,
+        216,
+        214,
+        127,
+        208,
+        140,
+        86,
+        91
+      ],
+      "accounts": [
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "dungeon_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  117,
+                  110,
+                  103,
+                  101,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "match_state"
+        },
+        {
+          "name": "player",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_match",
+      "docs": [
+        "Create a new match - called on L1"
+      ],
+      "discriminator": [
+        107,
+        2,
+        184,
+        145,
+        70,
+        142,
+        17,
+        165
+      ],
+      "accounts": [
+        {
+          "name": "match_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "match_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "match_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "create_player_permission",
+      "docs": [
+        "Create privacy permission for player state",
+        "This ensures only the player can see their own position/gold"
+      ],
+      "discriminator": [
+        166,
+        251,
+        27,
+        79,
+        162,
+        158,
+        149,
+        149
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "player_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "match_state"
+        },
+        {
+          "name": "permission",
+          "writable": true
+        },
+        {
+          "name": "permission_program",
+          "address": "ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "delegate_dungeon",
+      "docs": [
+        "Delegate dungeon state to ER"
+      ],
+      "discriminator": [
+        16,
+        43,
+        112,
+        4,
+        103,
+        204,
+        242,
+        107
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "buffer_dungeon_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "dungeon_state"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                232,
+                81,
+                23,
+                111,
+                120,
+                153,
+                249,
+                237,
+                246,
+                127,
+                200,
+                137,
+                174,
+                200,
+                66,
+                17,
+                223,
+                139,
+                138,
+                65,
+                110,
+                69,
+                99,
+                88,
+                97,
+                12,
+                6,
+                80,
+                27,
+                123,
+                114,
+                236
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_dungeon_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "dungeon_state"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_dungeon_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "dungeon_state"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "dungeon_state",
+          "docs": [
+            "The dungeon state PDA to delegate"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  117,
+                  110,
+                  103,
+                  101,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "match_state"
+        },
+        {
+          "name": "owner_program",
+          "address": "GdsJcVVwzv8sMwyYuKXgKiYouPUEBPHQS54xD4Rd1kDh"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "delegate_match",
+      "docs": [
+        "Delegate match state to Ephemeral Rollup for fast, gasless gameplay",
+        "This moves the account to the ER validator for high-speed transactions"
+      ],
+      "discriminator": [
+        30,
+        116,
+        9,
+        69,
+        147,
+        61,
+        133,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "buffer_match_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                232,
+                81,
+                23,
+                111,
+                120,
+                153,
+                249,
+                237,
+                246,
+                127,
+                200,
+                137,
+                174,
+                200,
+                66,
+                17,
+                223,
+                139,
+                138,
+                65,
+                110,
+                69,
+                99,
+                88,
+                97,
+                12,
+                6,
+                80,
+                27,
+                123,
+                114,
+                236
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_match_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_match_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "match_state",
+          "docs": [
+            "The match state PDA to delegate"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state.match_id",
+                "account": "MatchState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_program",
+          "address": "GdsJcVVwzv8sMwyYuKXgKiYouPUEBPHQS54xD4Rd1kDh"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "delegate_player",
+      "docs": [
+        "Delegate player state to ER for private gameplay"
+      ],
+      "discriminator": [
+        235,
+        159,
+        245,
+        102,
+        161,
+        199,
+        254,
+        89
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "buffer_player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player_state"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                232,
+                81,
+                23,
+                111,
+                120,
+                153,
+                249,
+                237,
+                246,
+                127,
+                200,
+                137,
+                174,
+                200,
+                66,
+                17,
+                223,
+                139,
+                138,
+                65,
+                110,
+                69,
+                99,
+                88,
+                97,
+                12,
+                6,
+                80,
+                27,
+                123,
+                114,
+                236
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player_state"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player_state"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "player_state",
+          "docs": [
+            "The player state PDA to delegate"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "match_state"
+        },
+        {
+          "name": "owner_program",
+          "address": "GdsJcVVwzv8sMwyYuKXgKiYouPUEBPHQS54xD4Rd1kDh"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "escape",
+      "docs": [
+        "Escape with gold - ends match (commits to L1 via Magic Actions)"
+      ],
+      "discriminator": [
+        38,
+        219,
+        109,
+        188,
+        9,
+        181,
+        76,
+        68
+      ],
+      "accounts": [
+        {
+          "name": "match_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state.match_id",
+                "account": "MatchState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "dungeon_state"
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "forfeit",
+      "docs": [
+        "Forfeit match"
+      ],
+      "discriminator": [
+        80,
+        154,
+        237,
+        158,
+        244,
+        198,
+        154,
+        9
+      ],
+      "accounts": [
+        {
+          "name": "match_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state.match_id",
+                "account": "MatchState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "generate_dungeon",
+      "docs": [
+        "Generate dungeon using VRF seed"
+      ],
+      "discriminator": [
+        65,
+        80,
+        227,
+        206,
+        73,
+        243,
+        84,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "dungeon_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  117,
+                  110,
+                  103,
+                  101,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "match_state"
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "vrf_seed",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "init_combat",
+      "docs": [
+        "Initialize combat state when players meet"
+      ],
+      "discriminator": [
+        171,
+        173,
+        44,
+        112,
+        91,
+        234,
+        130,
+        102
+      ],
+      "accounts": [
+        {
+          "name": "combat_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  98,
+                  97,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "match_state"
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_player_state",
+      "docs": [
+        "Initialize player state"
+      ],
+      "discriminator": [
+        85,
+        185,
+        140,
+        14,
+        214,
+        208,
+        19,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "match_state"
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "spawn_x",
+          "type": "u8"
+        },
+        {
+          "name": "spawn_y",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "join_match",
+      "docs": [
+        "Join an existing match - called on L1"
+      ],
+      "discriminator": [
+        244,
+        8,
+        47,
+        130,
+        192,
+        59,
+        179,
+        44
+      ],
+      "accounts": [
+        {
+          "name": "match_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state.match_id",
+                "account": "MatchState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "lock_combat_action",
+      "docs": [
+        "Lock combat action (hidden from opponent until reveal)"
+      ],
+      "discriminator": [
+        61,
+        131,
+        235,
+        250,
+        102,
+        37,
+        61,
+        181
+      ],
+      "accounts": [
+        {
+          "name": "match_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state.match_id",
+                "account": "MatchState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "combat_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  98,
+                  97,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "action",
+          "type": {
+            "defined": {
+              "name": "CombatAction"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "move_player",
+      "docs": [
+        "Move player - gasless on ER"
+      ],
+      "discriminator": [
+        17,
+        58,
+        68,
+        221,
+        186,
+        117,
+        140,
+        231
+      ],
+      "accounts": [
+        {
+          "name": "match_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state.match_id",
+                "account": "MatchState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "opponent_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "opponent"
+              }
+            ]
+          }
+        },
+        {
+          "name": "dungeon_state"
+        },
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "opponent"
+        }
+      ],
+      "args": [
+        {
+          "name": "direction",
+          "type": {
+            "defined": {
+              "name": "Direction"
+            }
+          }
+        }
+      ],
+      "returns": {
+        "defined": {
+          "name": "MoveResult"
+        }
+      }
+    },
+    {
+      "name": "process_undelegation",
+      "discriminator": [
+        196,
+        28,
+        41,
+        206,
+        48,
+        37,
+        51,
+        167
+      ],
+      "accounts": [
+        {
+          "name": "base_account",
+          "writable": true
+        },
+        {
+          "name": "buffer"
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "account_seeds",
+          "type": {
+            "vec": "bytes"
+          }
+        }
+      ]
+    },
+    {
+      "name": "resolve_combat",
+      "docs": [
+        "Resolve combat using VRF result"
+      ],
+      "discriminator": [
+        102,
+        12,
+        186,
+        107,
+        61,
+        197,
+        93,
+        223
+      ],
+      "accounts": [
+        {
+          "name": "match_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state.match_id",
+                "account": "MatchState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "combat_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  98,
+                  97,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player1_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "match_state.player1",
+                "account": "MatchState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player2_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "match_state.player2",
+                "account": "MatchState"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "vrf_result",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ],
+      "returns": {
+        "defined": {
+          "name": "CombatResult"
+        }
+      }
+    },
+    {
+      "name": "start_match",
+      "docs": [
+        "Start match after all setup is complete"
+      ],
+      "discriminator": [
+        100,
+        246,
+        223,
+        181,
+        176,
+        101,
+        255,
+        19
+      ],
+      "accounts": [
+        {
+          "name": "match_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state.match_id",
+                "account": "MatchState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "undelegate_match",
+      "docs": [
+        "Undelegate and commit match results back to L1",
+        "Called when match ends to settle final state on-chain"
+      ],
+      "discriminator": [
+        142,
+        117,
+        126,
+        27,
+        242,
+        11,
+        103,
+        14
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "match_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  116,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state.match_id",
+                "account": "MatchState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "undelegate_player",
+      "docs": [
+        "Undelegate player state back to L1"
+      ],
+      "discriminator": [
+        230,
+        242,
+        176,
+        199,
+        120,
+        26,
+        119,
+        243
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "player_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "match_state"
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "match_state"
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "CombatState",
+      "discriminator": [
+        30,
+        219,
+        190,
+        221,
+        225,
+        108,
+        27,
+        145
+      ]
+    },
+    {
+      "name": "MatchState",
+      "discriminator": [
+        250,
+        209,
+        137,
+        70,
+        235,
+        96,
+        121,
+        216
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "MatchNotWaiting",
+      "msg": "Match is not waiting for players"
+    },
+    {
+      "code": 6001,
+      "name": "MatchFull",
+      "msg": "Match is full"
+    },
+    {
+      "code": 6002,
+      "name": "MatchNotReady",
+      "msg": "Match is not ready"
+    },
+    {
+      "code": 6003,
+      "name": "MatchNotActive",
+      "msg": "Match is not active"
+    },
+    {
+      "code": 6004,
+      "name": "MatchNotEnded",
+      "msg": "Match has not ended"
+    },
+    {
+      "code": 6005,
+      "name": "PlayerDead",
+      "msg": "Player is dead"
+    },
+    {
+      "code": 6006,
+      "name": "OutOfBounds",
+      "msg": "Movement out of bounds"
+    },
+    {
+      "code": 6007,
+      "name": "BlockedTile",
+      "msg": "Tile is blocked"
+    },
+    {
+      "code": 6008,
+      "name": "NotAtExit",
+      "msg": "Not at exit position"
+    },
+    {
+      "code": 6009,
+      "name": "CombatAlreadyResolved",
+      "msg": "Combat already resolved"
+    },
+    {
+      "code": 6010,
+      "name": "ActionsNotLocked",
+      "msg": "Combat actions not locked"
+    },
+    {
+      "code": 6011,
+      "name": "Unauthorized",
+      "msg": "Unauthorized - not your player state"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidDelegation",
+      "msg": "Invalid delegation state"
+    }
+  ],
+  "types": [
+    {
+      "name": "CombatAction",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Attack"
+          },
+          {
+            "name": "Block"
+          },
+          {
+            "name": "Dodge"
+          },
+          {
+            "name": "Heavy"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CombatResult",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "player1_damage",
+            "type": "u8"
+          },
+          {
+            "name": "player2_damage",
+            "type": "u8"
+          },
+          {
+            "name": "player1_health",
+            "type": "u8"
+          },
+          {
+            "name": "player2_health",
+            "type": "u8"
+          },
+          {
+            "name": "gold_dropped",
+            "type": "u64"
+          },
+          {
+            "name": "winner",
+            "type": {
+              "option": "pubkey"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "CombatState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "match_id",
+            "type": "u64"
+          },
+          {
+            "name": "player1_action",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "CombatAction"
+                }
+              }
+            }
+          },
+          {
+            "name": "player2_action",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "CombatAction"
+                }
+              }
+            }
+          },
+          {
+            "name": "round",
+            "type": "u8"
+          },
+          {
+            "name": "resolved",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Direction",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Up"
+          },
+          {
+            "name": "Down"
+          },
+          {
+            "name": "Left"
+          },
+          {
+            "name": "Right"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MatchState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "match_id",
+            "type": "u64"
+          },
+          {
+            "name": "player1",
+            "type": "pubkey"
+          },
+          {
+            "name": "player2",
+            "type": "pubkey"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "MatchStatus"
+              }
+            }
+          },
+          {
+            "name": "winner",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "vrf_seed",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "ended_at",
+            "type": {
+              "option": "i64"
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MatchStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Waiting"
+          },
+          {
+            "name": "Ready"
+          },
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Ended"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProximityResult",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "enemy_nearby",
+            "type": "bool"
+          },
+          {
+            "name": "distance",
+            "type": "u8"
+          },
+          {
+            "name": "in_combat_range",
+            "type": "bool"
+          }
+        ]
+      }
+    }
+  ]
+}
