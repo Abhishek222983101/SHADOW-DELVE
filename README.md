@@ -87,4 +87,4 @@ Navigate to `http://localhost:3000` to play.
 - PicoVillage Tile Assets
 
 ---
-*Created for the MagicBlock Hackathon 2024*
+*Created for the MagicBlock Hackathon 2026*
