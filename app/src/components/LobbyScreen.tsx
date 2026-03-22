@@ -70,7 +70,7 @@ export const LobbyScreen: FC<LobbyScreenProps> = ({
 
   // Poll for match updates when waiting
   useEffect(() => {
-    if (!matchInfo || lobbyState !== "waiting") return;
+    if (!matchInfo || (lobbyState !== "waiting" && lobbyState !== "joining")) return;
 
     const pollMatch = async () => {
       try {
@@ -78,7 +78,13 @@ export const LobbyScreen: FC<LobbyScreenProps> = ({
         const match = await client.getMatchState(matchInfo.matchId);
         if (match) {
           const status = anchorStatusToEnum(match.status);
-          if (status === MatchStatus.Ready || status === MatchStatus.Active) {
+          if (status === MatchStatus.Active && !matchInfo.isHost) {
+            onMatchStart(
+              matchInfo.matchId.toString(),
+              matchInfo.player2,
+              matchInfo.isHost
+            );
+          } else if (status === MatchStatus.Ready || status === MatchStatus.Active) {
             setMatchInfo((prev) =>
               prev
                 ? {
@@ -180,6 +186,7 @@ export const LobbyScreen: FC<LobbyScreenProps> = ({
         throw new Error("Wallet does not support signMessage");
       }
       setStatusMessage("TEE CONNECTED! WAITING FOR HOST TO START...");
+      setLobbyState("waiting");
 
       setMatchInfo({
         matchId,
@@ -207,7 +214,13 @@ export const LobbyScreen: FC<LobbyScreenProps> = ({
       try {
         const client = getShadowDelveClient();
         
-        // Host delegates the match state to the TEE AFTER player 2 joins
+        // Start match on L1 BEFORE delegating
+        await client.startMatch(matchInfo.matchId);
+
+        setStatusMessage("MATCH STARTED! DELEGATING TO TEE...");
+
+        // Now Host delegates the match state to the TEE
+
         await client.delegateDungeon(matchInfo.matchId);
         await client.delegateMatch(matchInfo.matchId);
         
@@ -216,7 +229,7 @@ export const LobbyScreen: FC<LobbyScreenProps> = ({
         // Wait a moment for TEE sync
         await new Promise((resolve) => setTimeout(resolve, 2000));
         
-        await client.startMatch(matchInfo.matchId);
+
         
         onMatchStart(
           matchInfo.matchId.toString(),

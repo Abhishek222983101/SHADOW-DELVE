@@ -441,7 +441,7 @@ export class ShadowDelveClient {
   async startMatch(matchId: BN): Promise<string> {
     if (!this.wallet) throw new Error("Wallet not connected");
 
-    const program = this.getTEEProgram() || this.program;
+    const program = this.program; // Always run on L1 before delegation
 
     const [matchPDA] = this.getMatchPDA(matchId);
 
@@ -580,7 +580,7 @@ export class ShadowDelveClient {
   ): Promise<string> {
     if (!this.wallet) throw new Error("Wallet not connected");
 
-    const program = this.getTEEProgram() || this.program;
+    const program = this.program; // Always run on L1 before delegation
 
     const [matchPDA] = this.getMatchPDA(matchId);
     const [playerPDA] = this.getPlayerStatePDA(matchPDA, this.wallet.publicKey);
@@ -607,7 +607,7 @@ export class ShadowDelveClient {
   async collectTreasure(matchId: BN): Promise<string> {
     if (!this.wallet) throw new Error("Wallet not connected");
 
-    const program = this.getTEEProgram() || this.program;
+    const program = this.program; // Always run on L1 before delegation
 
     const [matchPDA] = this.getMatchPDA(matchId);
     const [playerPDA] = this.getPlayerStatePDA(matchPDA, this.wallet.publicKey);
@@ -629,7 +629,7 @@ export class ShadowDelveClient {
   async escape(matchId: BN): Promise<string> {
     if (!this.wallet) throw new Error("Wallet not connected");
 
-    const program = this.getTEEProgram() || this.program;
+    const program = this.program; // Always run on L1 before delegation
 
     const [matchPDA] = this.getMatchPDA(matchId);
     const [playerPDA] = this.getPlayerStatePDA(matchPDA, this.wallet.publicKey);
@@ -655,7 +655,7 @@ export class ShadowDelveClient {
   async initCombat(matchId: BN): Promise<string> {
     if (!this.wallet) throw new Error("Wallet not connected");
 
-    const program = this.getTEEProgram() || this.program;
+    const program = this.program; // Always run on L1 before delegation
 
     const [matchPDA] = this.getMatchPDA(matchId);
     const [combatPDA] = this.getCombatPDA(matchPDA);
@@ -679,7 +679,7 @@ export class ShadowDelveClient {
   ): Promise<string> {
     if (!this.wallet) throw new Error("Wallet not connected");
 
-    const program = this.getTEEProgram() || this.program;
+    const program = this.program; // Always run on L1 before delegation
 
     const [matchPDA] = this.getMatchPDA(matchId);
     const [combatPDA] = this.getCombatPDA(matchPDA);

@@ -75,11 +75,12 @@ export class PixelDungeonRenderer {
     this.viewportWidth = width;
     this.viewportHeight = height;
 
-    // Calculate optimal tile size for visibility
-    const tilesVisible = 12; // How many tiles fit on screen
-    this.renderSize = Math.floor(Math.min(width, height) / tilesVisible);
-    this.renderSize = Math.max(this.renderSize, 40);
-    this.renderSize = Math.min(this.renderSize, 64);
+    // Increase render size to make things more visible
+    const minDimension = Math.min(width, height);
+    const tilesVisible = 10; // Show fewer tiles to make them larger
+    this.renderSize = Math.floor(minDimension / tilesVisible);
+    this.renderSize = Math.max(this.renderSize, 48); // Increase min size
+    this.renderSize = Math.min(this.renderSize, 80); // Increase max size
   }
 
   // Set player position (in grid coordinates)
@@ -108,8 +109,11 @@ export class PixelDungeonRenderer {
     // Clamp to map bounds
     const maxCameraX = this.gridWidth * this.renderSize - this.viewportWidth;
     const maxCameraY = this.gridHeight * this.renderSize - this.viewportHeight;
-    this.targetCameraX = Math.max(0, Math.min(this.targetCameraX, maxCameraX));
-    this.targetCameraY = Math.max(0, Math.min(this.targetCameraY, maxCameraY));
+    // Allow negative coordinates to center small maps
+    if (maxCameraX < 0) this.targetCameraX = maxCameraX / 2;
+    else this.targetCameraX = Math.max(0, Math.min(this.targetCameraX, maxCameraX));
+    if (maxCameraY < 0) this.targetCameraY = maxCameraY / 2;
+    else this.targetCameraY = Math.max(0, Math.min(this.targetCameraY, maxCameraY));
 
     // Smooth camera follow
     const smoothing = 0.15;
@@ -349,21 +353,21 @@ export class PixelDungeonRenderer {
       0,
       centerX,
       centerY,
-      size * 0.7
+      size * 1.5 // increase glow radius
     );
-    glowGrad.addColorStop(0, `rgba(255, 255, 0, ${0.8 * pulse})`);
-    glowGrad.addColorStop(0.5, `rgba(255, 200, 0, ${0.5 * pulse})`);
+    glowGrad.addColorStop(0, `rgba(255, 255, 0, ${0.9 * pulse})`);
+    glowGrad.addColorStop(0.5, `rgba(255, 150, 0, ${0.6 * pulse})`);
     glowGrad.addColorStop(1, "transparent");
     this.ctx.fillStyle = glowGrad;
-    this.ctx.fillRect(x - size * 0.5, y - size * 0.5, size * 2, size * 2); // Make glow bigger
+    this.ctx.fillRect(x - size, y - size, size * 3, size * 3); // Make glow area bigger
     
     // Draw a prominent diamond/star above chest
     this.ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
     this.ctx.beginPath();
-    this.ctx.moveTo(centerX, centerY - size*0.4);
-    this.ctx.lineTo(centerX + size*0.1, centerY - size*0.2);
+    this.ctx.moveTo(centerX, centerY - size*0.6);
+    this.ctx.lineTo(centerX + size*0.15, centerY - size*0.3);
     this.ctx.lineTo(centerX, centerY);
-    this.ctx.lineTo(centerX - size*0.1, centerY - size*0.2);
+    this.ctx.lineTo(centerX - size*0.15, centerY - size*0.3);
     this.ctx.fill();
 
     // Draw chest from tileset
@@ -391,19 +395,25 @@ export class PixelDungeonRenderer {
     isEnemy: boolean = false
   ): void {
     // Use smooth world position instead of grid position
-    const screenX = this.playerWorldX - this.cameraX;
-    const screenY = this.playerWorldY - this.cameraY;
+    let screenX = this.playerWorldX - this.cameraX;
+    let screenY = this.playerWorldY - this.cameraY;
+    if (isEnemy) {
+      const pos = this.gridToScreen(gridX, gridY);
+      screenX = pos.x + this.renderSize / 2;
+      screenY = pos.y + this.renderSize / 2;
+    }
 
     if (this.playerSprite && this.playerSprite.isReady()) {
       // Draw with glow
       const glowColor = isEnemy ? "rgb(139, 58, 117)" : "rgb(255, 107, 53)";
+      const spriteScale = (this.renderSize / 40) * 0.8; // EVEN BIGGER scale
       this.playerSprite.drawWithGlow(
         this.ctx,
         screenX,
         screenY,
-        0.45,
+        spriteScale,
         glowColor,
-        0.4
+        0.6
       );
     } else {
       // Fallback if sprite not loaded
@@ -512,8 +522,8 @@ export class PixelDungeonRenderer {
   // Draw smooth fog of war around visible area
   drawFogOfWar(visibleTiles: Set<string>, exploredTiles: Set<string>): void {
     // Create a radial gradient centered on player for smooth lighting
-    const screenX = this.playerWorldX - this.cameraX;
-    const screenY = this.playerWorldY - this.cameraY;
+    let screenX = this.playerWorldX - this.cameraX;
+    let screenY = this.playerWorldY - this.cameraY;
 
     const lightRadius = this.renderSize * 4;
     const gradient = this.ctx.createRadialGradient(

@@ -442,22 +442,12 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
         );
         if (enemyIdx !== -1) {
           // Mock prompt for combat in demo
-          if (
-            confirm(
-              "Enemy encountered! Enter combat? (Demo mode: press Cancel to ignore)"
-            )
-          ) {
-            onCombat(prev.enemies[enemyIdx]);
-          } else {
-            // Remove enemy to prevent infinite triggers
-            const newEnemies = [...prev.enemies];
-            newEnemies.splice(enemyIdx, 1);
-            return {
-              ...prev,
-              enemies: newEnemies,
-            };
-          }
-          return prev; // Don't move into enemy tile
+          setTimeout(() => onCombat(prev.enemies[enemyIdx]), 0);
+          // Remove enemy so we dont keep hitting it
+          const newEnemies = [...prev.enemies];
+          newEnemies.splice(enemyIdx, 1);
+          return { ...prev, enemies: newEnemies };
+
         }
 
         // Check exit
@@ -486,11 +476,11 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
   }, [state.gameOver, dungeon, onCombat]);
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-black">
-      <canvas ref={canvasRef} className="absolute inset-0" />
+    <div className="fixed inset-0 overflow-hidden bg-black flex items-center justify-center">
+      <canvas ref={canvasRef} className="absolute max-w-full max-h-full" style={{ objectFit: "contain", margin: "auto" }} />
 
       {/* HUD */}
-      <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
+      <div className="absolute top-20 left-4 right-4 flex justify-between items-start pointer-events-none">
         {/* Health */}
         <div
           className="flex items-center gap-2 px-3 py-2"
@@ -600,7 +590,7 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
 
       {/* Victory screen */}
       {state.gameOver && state.victory && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/80">
           <div
             className="text-center p-8"
             style={{
@@ -649,7 +639,7 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
 
       {/* Grain overlay */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-15"
+        className="fixed inset-0 pointer-events-none opacity-15"
         style={{
           background: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
           mixBlendMode: "overlay",

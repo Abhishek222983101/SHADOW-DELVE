@@ -3,6 +3,8 @@
 // Supports 3200x3200 sheets with 200x200 frames (16x16 grid)
 // ============================================
 
+import { loadImage } from "./tilesets";
+
 export interface AnimationConfig {
   row: number;
   frames: number;
@@ -44,17 +46,20 @@ export class SpriteAnimator {
   }
 
   async load(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        this.image = img;
-        this.isLoaded = true;
-        resolve();
-      };
-      img.onerror = () =>
-        reject(new Error(`Failed to load sprite: ${this.config.src}`));
-      img.src = this.config.src;
-    });
+    if (this.isLoaded) return Promise.resolve();
+    
+    
+    
+    try {
+      this.image = await loadImage(this.config.src);
+      this.isLoaded = true;
+    } catch (e) {
+      console.error(`Failed to load sprite: ${this.config.src}`, e);
+      this.isLoaded = true;
+      
+    }
+    
+    return Promise.resolve();
   }
 
   setAnimation(anim: AnimationState, onComplete?: () => void): void {
@@ -111,6 +116,7 @@ export class SpriteAnimator {
             this.onAnimationComplete = undefined;
           }
         } else {
+        
           // Loop
           this.currentFrame = 0;
         }

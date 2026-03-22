@@ -89,8 +89,16 @@ export class CombatRenderer {
   }
 
   async loadAssets(): Promise<void> {
-    await Promise.all([this.playerSprite.load(), this.enemySprite.load()]);
-    this.isLoaded = true;
+    try {
+      
+      await Promise.all([this.playerSprite.load(), this.enemySprite.load()]);
+      
+    } catch (e) {
+      console.error("Error loading combat assets", e);
+    } finally {
+      this.isLoaded = true;
+      
+    }
   }
 
   resize(width: number, height: number): void {
@@ -461,7 +469,7 @@ export class CombatRenderer {
   private drawCharacters(): void {
     // Calculate scale based on viewport (characters should be big!)
     const scale = Math.min(this.width, this.height) / 600;
-    const spriteScale = Math.max(0.5, Math.min(scale * 0.6, 0.8));
+    const spriteScale = Math.max(0.8, Math.min(scale * 1.0, 1.2)); // Make them BIGGER
 
     // Draw shadows under characters
     this.ctx.fillStyle = "rgba(0, 0, 0, 0.4)";

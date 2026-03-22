@@ -134,8 +134,14 @@ export const CombatScreen: FC<CombatScreenProps> = ({
     const renderer = new CombatRenderer(canvasRef.current);
     rendererRef.current = renderer;
 
+    
     renderer.loadAssets().then(() => {
+      
       renderer.resize(window.innerWidth, window.innerHeight);
+      setIsLoaded(true);
+    }).catch(err => {
+      console.error("Combat asset load error:", err);
+      // Fallback: still try to render even if sprites fail
       setIsLoaded(true);
     });
 
