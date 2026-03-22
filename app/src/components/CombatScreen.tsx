@@ -289,7 +289,7 @@ export const CombatScreen: FC<CombatScreenProps> = ({
               color: "#ff6b35",
             }}
           >
-            LOADING COMBAT...
+            LOADING COMBAT... (If stuck, check console)
           </p>
         </div>
       </div>
@@ -436,6 +436,24 @@ export const CombatScreen: FC<CombatScreenProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Action Buttons */}
+      <div className="absolute top-4 left-4 z-50">
+        <button
+          onClick={() => onEnd(false, playerHealth, 0)}
+          className="px-4 py-2 hover:opacity-80 transition-opacity"
+          style={{
+            fontFamily: '"Press Start 2P", monospace',
+            fontSize: "10px",
+            background: "#2a2a3a",
+            color: "#ff6b35",
+            border: "2px solid #ff6b35",
+            boxShadow: "2px 2px 0 #000",
+          }}
+        >
+          FLEE
+        </button>
       </div>
 
       {/* Action Buttons */}

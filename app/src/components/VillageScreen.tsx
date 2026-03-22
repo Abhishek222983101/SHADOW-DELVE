@@ -141,10 +141,11 @@ export const VillageScreen: FC<VillageScreenProps> = ({ onEnterDungeon }) => {
           style={{
             fontFamily: '"Press Start 2P", monospace',
             color: "#ff6b35",
-            textShadow: "4px 4px 0 #000, 0 0 40px rgba(255, 107, 53, 0.5)",
+            textShadow: "4px 4px 0 #000, 8px 8px 0px rgba(0,0,0,0.5), 0 0 40px rgba(255, 107, 53, 0.5)",
+            WebkitTextStroke: "2px #000",
           }}
         >
-          SHADOW DELVE
+          S H A D O W  D E L V E
         </h1>
         <p
           className="mt-2"
@@ -155,7 +156,7 @@ export const VillageScreen: FC<VillageScreenProps> = ({ onEnterDungeon }) => {
             letterSpacing: "4px",
           }}
         >
-          DUNGEON PVP ON SOLANA
+          ENTER THE ARENA
         </p>
       </div>
 

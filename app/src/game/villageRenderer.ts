@@ -1,126 +1,57 @@
 // ============================================
-// VILLAGE RENDERER - Interactive tilemap with camera system
-// Renders the village hub with grass, paths, trees, buildings
+// VILLAGE RENDERER - Beautiful PicoVillage tilemap
+// Open world feel with houses, NPCs, dungeon entrance
 // ============================================
 
-import { loadImage, getImage, VILLAGE_GROUND } from "./tilesets";
-import { SpriteAnimator } from "./spriteAnimator";
-import { WARRIOR_CONFIG } from "./spriteData";
+import { ASSETS, GAME_CONFIG, COLORS } from "./constants";
 
 // ============================================
-// VILLAGE MAP CONFIGURATION
+// TILE TYPES
 // ============================================
 
-const TILE_SIZE = 16; // Source tile size
-const RENDER_SCALE = 3; // Scale up for crisp pixel art
-const RENDER_TILE_SIZE = TILE_SIZE * RENDER_SCALE; // 48px rendered tiles
-
-// Village map dimensions (in tiles)
-const MAP_WIDTH = 30;
-const MAP_HEIGHT = 24;
-
-// Tile types for the village map
 enum VillageTile {
   Grass1 = 0,
   Grass2 = 1,
   Grass3 = 2,
-  Path = 3,
-  PathEdgeTop = 4,
-  PathEdgeBottom = 5,
-  PathEdgeLeft = 6,
-  PathEdgeRight = 7,
-  Water = 8,
-  Tree = 9,
-  Building = 10,
-  DungeonGate = 11,
+  GrassFlower = 3,
+  Path = 4,
+  PathEdge = 5,
+  Water = 6,
+  WaterEdge = 7,
+  Bridge = 8,
+  Fence = 9,
+  Tree = 10,
+  Bush = 11,
+  Rock = 12,
+  Building = 13,
+  DungeonGate = 14,
+  Dock = 15,
 }
 
-// Collision layer - true = blocked
-const COLLISION_TILES = new Set([
-  VillageTile.Water,
-  VillageTile.Tree,
-  VillageTile.Building,
-]);
-
 // ============================================
-// VILLAGE MAP DATA
-// Hand-crafted village layout
+// NPC DEFINITION
 // ============================================
 
-function generateVillageMap(): number[][] {
-  const map: number[][] = [];
+interface NPC {
+  x: number;
+  y: number;
+  name: string;
+  dialogue: string[];
+  sprite: { sx: number; sy: number };
+  facing: "left" | "right" | "down" | "up";
+}
 
-  for (let y = 0; y < MAP_HEIGHT; y++) {
-    const row: number[] = [];
-    for (let x = 0; x < MAP_WIDTH; x++) {
-      // Default to grass with variation
-      let tile = (x + y) % 3; // Grass1, Grass2, or Grass3
+// ============================================
+// BUILDING DEFINITION
+// ============================================
 
-      // Water pond on the left
-      if (x >= 2 && x <= 5 && y >= 8 && y <= 11) {
-        tile = VillageTile.Water;
-      }
-
-      // Main path from bottom to dungeon gate (top center)
-      if (x >= 13 && x <= 16 && y >= 2) {
-        tile = VillageTile.Path;
-      }
-
-      // Horizontal path connecting areas
-      if (y >= 14 && y <= 15 && x >= 5 && x <= 24) {
-        tile = VillageTile.Path;
-      }
-
-      // Trees scattered around
-      const treePositions = [
-        [1, 3],
-        [3, 2],
-        [5, 4],
-        [7, 2],
-        [8, 5],
-        [22, 3],
-        [24, 2],
-        [26, 4],
-        [27, 6],
-        [25, 8],
-        [2, 16],
-        [4, 18],
-        [6, 20],
-        [8, 17],
-        [22, 17],
-        [24, 19],
-        [26, 16],
-        [28, 18],
-        [10, 5],
-        [11, 7],
-        [19, 5],
-        [20, 7],
-      ];
-      for (const [tx, ty] of treePositions) {
-        if (x === tx && y === ty) tile = VillageTile.Tree;
-      }
-
-      // Buildings
-      // Left building (tavern)
-      if (x >= 7 && x <= 10 && y >= 10 && y <= 12) {
-        tile = VillageTile.Building;
-      }
-      // Right building (shop)
-      if (x >= 20 && x <= 23 && y >= 10 && y <= 12) {
-        tile = VillageTile.Building;
-      }
-
-      // Dungeon gate at top center
-      if (x >= 13 && x <= 16 && y >= 0 && y <= 2) {
-        tile = VillageTile.DungeonGate;
-      }
-
-      row.push(tile);
-    }
-    map.push(row);
-  }
-
-  return map;
+interface Building {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type: "tavern" | "shop" | "house" | "blacksmith" | "dungeon";
+  name: string;
 }
 
 // ============================================
@@ -128,35 +59,31 @@ function generateVillageMap(): number[][] {
 // ============================================
 
 class Camera {
-  x: number = 0;
-  y: number = 0;
+  x = 0;
+  y = 0;
   width: number;
   height: number;
-
-  // Smooth follow parameters
-  private targetX: number = 0;
-  private targetY: number = 0;
-  private smoothing: number = 0.1;
+  targetX = 0;
+  targetY = 0;
+  smoothing = GAME_CONFIG.CAMERA_SMOOTHING;
 
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
   }
 
-  setTarget(x: number, y: number): void {
-    // Center camera on target
+  setTarget(x: number, y: number, mapWidth: number, mapHeight: number): void {
     this.targetX = x - this.width / 2;
     this.targetY = y - this.height / 2;
 
     // Clamp to map bounds
-    const maxX = MAP_WIDTH * RENDER_TILE_SIZE - this.width;
-    const maxY = MAP_HEIGHT * RENDER_TILE_SIZE - this.height;
+    const maxX = mapWidth - this.width;
+    const maxY = mapHeight - this.height;
     this.targetX = Math.max(0, Math.min(this.targetX, maxX));
     this.targetY = Math.max(0, Math.min(this.targetY, maxY));
   }
 
   update(): void {
-    // Smooth interpolation
     this.x += (this.targetX - this.x) * this.smoothing;
     this.y += (this.targetY - this.y) * this.smoothing;
   }
@@ -168,41 +95,306 @@ class Camera {
 }
 
 // ============================================
-// VILLAGE RENDERER CLASS
+// VILLAGE MAP GENERATOR
+// ============================================
+
+function generateVillageMap(): {
+  tiles: number[][];
+  buildings: Building[];
+  npcs: NPC[];
+} {
+  const width = GAME_CONFIG.VILLAGE_WIDTH;
+  const height = GAME_CONFIG.VILLAGE_HEIGHT;
+  const tiles: number[][] = [];
+
+  // Initialize with grass
+  for (let y = 0; y < height; y++) {
+    const row: number[] = [];
+    for (let x = 0; x < width; x++) {
+      // Varied grass with occasional flowers
+      const grassType = (x * 7 + y * 13) % 10;
+      if (grassType < 4) row.push(VillageTile.Grass1);
+      else if (grassType < 7) row.push(VillageTile.Grass2);
+      else if (grassType < 9) row.push(VillageTile.Grass3);
+      else row.push(VillageTile.GrassFlower);
+    }
+    tiles.push(row);
+  }
+
+  // Water pond (left side)
+  for (let y = 10; y < 16; y++) {
+    for (let x = 3; x < 9; x++) {
+      tiles[y][x] = VillageTile.Water;
+    }
+  }
+  // Water edges
+  for (let x = 3; x < 9; x++) {
+    tiles[9][x] = VillageTile.WaterEdge;
+    tiles[16][x] = VillageTile.WaterEdge;
+  }
+
+  // Main path (vertical - center)
+  for (let y = 3; y < height - 2; y++) {
+    tiles[y][18] = VillageTile.Path;
+    tiles[y][19] = VillageTile.Path;
+    tiles[y][20] = VillageTile.Path;
+  }
+
+  // Horizontal path (connects buildings)
+  for (let x = 10; x < 30; x++) {
+    tiles[14][x] = VillageTile.Path;
+    tiles[15][x] = VillageTile.Path;
+  }
+
+  // Path to dungeon (north)
+  for (let y = 0; y < 4; y++) {
+    tiles[y][18] = VillageTile.Path;
+    tiles[y][19] = VillageTile.Path;
+    tiles[y][20] = VillageTile.Path;
+  }
+
+  // Bridge over water
+  for (let x = 4; x < 8; x++) {
+    tiles[12][x] = VillageTile.Bridge;
+    tiles[13][x] = VillageTile.Bridge;
+  }
+
+  // Dock by water
+  tiles[11][9] = VillageTile.Dock;
+  tiles[12][9] = VillageTile.Dock;
+  tiles[13][9] = VillageTile.Dock;
+
+  // Trees (scattered)
+  const treePositions = [
+    [1, 2],
+    [2, 4],
+    [4, 1],
+    [6, 3],
+    [1, 7],
+    [2, 18],
+    [0, 22],
+    [12, 3],
+    [14, 2],
+    [25, 3],
+    [27, 5],
+    [30, 2],
+    [32, 4],
+    [35, 8],
+    [36, 10],
+    [37, 3],
+    [38, 6],
+    [33, 18],
+    [35, 20],
+    [1, 20],
+    [3, 23],
+    [5, 26],
+    [8, 24],
+    [10, 27],
+    [37, 25],
+  ];
+  for (const [x, y] of treePositions) {
+    if (x < width && y < height) tiles[y][x] = VillageTile.Tree;
+  }
+
+  // Bushes
+  const bushPositions = [
+    [5, 5],
+    [8, 6],
+    [11, 4],
+    [23, 4],
+    [28, 6],
+    [31, 3],
+    [10, 20],
+    [12, 22],
+    [28, 22],
+    [30, 24],
+  ];
+  for (const [x, y] of bushPositions) {
+    if (x < width && y < height) tiles[y][x] = VillageTile.Bush;
+  }
+
+  // Rocks
+  const rockPositions = [
+    [7, 8],
+    [9, 17],
+    [26, 8],
+    [34, 12],
+    [2, 25],
+    [36, 22],
+  ];
+  for (const [x, y] of rockPositions) {
+    if (x < width && y < height) tiles[y][x] = VillageTile.Rock;
+  }
+
+  // Fences around certain areas
+  for (let x = 12; x < 16; x++) {
+    tiles[8][x] = VillageTile.Fence;
+    tiles[12][x] = VillageTile.Fence;
+  }
+  for (let y = 8; y < 13; y++) {
+    tiles[y][12] = VillageTile.Fence;
+    tiles[y][15] = VillageTile.Fence;
+  }
+
+  // Dungeon gate at top
+  for (let y = 0; y < 3; y++) {
+    tiles[y][17] = VillageTile.DungeonGate;
+    tiles[y][18] = VillageTile.DungeonGate;
+    tiles[y][19] = VillageTile.DungeonGate;
+    tiles[y][20] = VillageTile.DungeonGate;
+    tiles[y][21] = VillageTile.DungeonGate;
+  }
+
+  // Buildings
+  const buildings: Building[] = [
+    {
+      x: 12,
+      y: 16,
+      width: 5,
+      height: 4,
+      type: "tavern",
+      name: "The Rusty Sword",
+    },
+    { x: 24, y: 16, width: 5, height: 4, type: "shop", name: "General Store" },
+    { x: 12, y: 22, width: 4, height: 3, type: "house", name: "Elder's House" },
+    { x: 26, y: 22, width: 4, height: 3, type: "blacksmith", name: "Forge" },
+    { x: 17, y: 0, width: 5, height: 3, type: "dungeon", name: "Shadow Gate" },
+  ];
+
+  // Mark building tiles
+  for (const building of buildings) {
+    if (building.type !== "dungeon") {
+      for (let y = building.y; y < building.y + building.height; y++) {
+        for (let x = building.x; x < building.x + building.width; x++) {
+          if (x < width && y < height) {
+            tiles[y][x] = VillageTile.Building;
+          }
+        }
+      }
+    }
+  }
+
+  // NPCs
+  const npcs: NPC[] = [
+    {
+      x: 15,
+      y: 20,
+      name: "Tavern Keeper",
+      dialogue: [
+        "Welcome traveler!",
+        "The dungeon is dangerous...",
+        "Many have entered, few returned.",
+      ],
+      sprite: { sx: 0, sy: 0 },
+      facing: "down",
+    },
+    {
+      x: 27,
+      y: 20,
+      name: "Merchant",
+      dialogue: [
+        "Got some fine wares!",
+        "Be careful in there.",
+        "Gold is all that matters.",
+      ],
+      sprite: { sx: 16, sy: 0 },
+      facing: "down",
+    },
+    {
+      x: 10,
+      y: 14,
+      name: "Old Man",
+      dialogue: [
+        "The shadow calls...",
+        "Two enter, one wins.",
+        "Your gold... or your life.",
+      ],
+      sprite: { sx: 32, sy: 0 },
+      facing: "right",
+    },
+    {
+      x: 19,
+      y: 5,
+      name: "Gate Guard",
+      dialogue: [
+        "The dungeon awaits.",
+        "Ready for battle?",
+        "Press E to enter.",
+      ],
+      sprite: { sx: 48, sy: 0 },
+      facing: "down",
+    },
+  ];
+
+  return { tiles, buildings, npcs };
+}
+
+// ============================================
+// COLLISION TILES
+// ============================================
+
+const COLLISION_TILES = new Set([
+  VillageTile.Water,
+  VillageTile.Tree,
+  VillageTile.Building,
+  VillageTile.Rock,
+  VillageTile.Fence,
+]);
+
+// ============================================
+// PLAYER STATE
 // ============================================
 
 export interface PlayerState {
-  x: number; // World position
+  x: number;
   y: number;
   velocityX: number;
   velocityY: number;
   isMoving: boolean;
+  facing: "left" | "right" | "up" | "down";
+  animFrame: number;
 }
+
+// ============================================
+// VILLAGE RENDERER CLASS
+// ============================================
 
 export class VillageRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private camera: Camera;
-  private map: number[][];
+
+  // Map data
+  private tiles: number[][] = [];
+  private buildings: Building[] = [];
+  private npcs: NPC[] = [];
 
   // Assets
-  private groundTileset: HTMLImageElement | null = null;
-  private objectsTileset: HTMLImageElement | null = null;
-  private buildingsTileset: HTMLImageElement | null = null;
+  private outdoorTiles: HTMLImageElement | null = null;
+  private waterTiles: HTMLImageElement | null = null;
+  private fenceTiles: HTMLImageElement | null = null;
+  private buildingTiles: HTMLImageElement | null = null;
+  private miscObjects: HTMLImageElement | null = null;
+  private characterTiles: HTMLImageElement | null = null;
 
   // Player
-  private playerSprite: SpriteAnimator;
   private playerState: PlayerState;
 
   // Input
-  private keys: Set<string> = new Set();
+  private keys = new Set<string>();
+
+  // Animation
+  private lastTime = 0;
+  private ambientTime = 0;
 
   // Callbacks
   public onEnterDungeon?: () => void;
+  public onTalkToNPC?: (npc: NPC) => void;
 
-  // Animation
-  private lastTime: number = 0;
-  private ambientTime: number = 0;
+  // Tile sizes
+  private srcTileSize = GAME_CONFIG.TILE_SOURCE_SIZE;
+  private renderScale = GAME_CONFIG.TILE_RENDER_SCALE;
+  private tileSize = this.srcTileSize * this.renderScale;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -212,30 +404,43 @@ export class VillageRenderer {
     this.ctx.imageSmoothingEnabled = false;
 
     this.camera = new Camera(canvas.width, canvas.height);
-    this.map = generateVillageMap();
 
-    // Initialize player at bottom center of map
+    // Generate map
+    const mapData = generateVillageMap();
+    this.tiles = mapData.tiles;
+    this.buildings = mapData.buildings;
+    this.npcs = mapData.npcs;
+
+    // Initialize player at village center
     this.playerState = {
-      x: 14.5 * RENDER_TILE_SIZE,
-      y: 20 * RENDER_TILE_SIZE,
+      x: 19 * this.tileSize,
+      y: 20 * this.tileSize,
       velocityX: 0,
       velocityY: 0,
       isMoving: false,
+      facing: "down",
+      animFrame: 0,
     };
-
-    this.playerSprite = new SpriteAnimator(WARRIOR_CONFIG);
   }
 
   async init(): Promise<void> {
     // Load all assets
+    const loadImg = (src: string): Promise<HTMLImageElement> =>
+      new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error(`Failed to load: ${src}`));
+        img.src = src;
+      });
+
     await Promise.all([
-      this.playerSprite.load(),
-      loadImage(VILLAGE_GROUND.src).then((img) => (this.groundTileset = img)),
-      loadImage("/tiles/objects_demo.png").then(
-        (img) => (this.objectsTileset = img)
-      ),
-      loadImage("/tiles/premade_buildings_demo.png").then(
-        (img) => (this.buildingsTileset = img)
+      loadImg(ASSETS.tiles.outdoor).then((img) => (this.outdoorTiles = img)),
+      loadImg(ASSETS.tiles.water).then((img) => (this.waterTiles = img)),
+      loadImg(ASSETS.tiles.fence).then((img) => (this.fenceTiles = img)),
+      loadImg(ASSETS.buildings.main).then((img) => (this.buildingTiles = img)),
+      loadImg(ASSETS.objects.misc).then((img) => (this.miscObjects = img)),
+      loadImg(ASSETS.characters.player).then(
+        (img) => (this.characterTiles = img)
       ),
     ]);
   }
@@ -260,17 +465,21 @@ export class VillageRenderer {
   }
 
   private getTileAt(worldX: number, worldY: number): number {
-    const tileX = Math.floor(worldX / RENDER_TILE_SIZE);
-    const tileY = Math.floor(worldY / RENDER_TILE_SIZE);
-    if (tileX < 0 || tileX >= MAP_WIDTH || tileY < 0 || tileY >= MAP_HEIGHT) {
-      return VillageTile.Tree; // Treat out of bounds as collision
+    const tileX = Math.floor(worldX / this.tileSize);
+    const tileY = Math.floor(worldY / this.tileSize);
+    if (
+      tileX < 0 ||
+      tileX >= GAME_CONFIG.VILLAGE_WIDTH ||
+      tileY < 0 ||
+      tileY >= GAME_CONFIG.VILLAGE_HEIGHT
+    ) {
+      return VillageTile.Tree; // Out of bounds = collision
     }
-    return this.map[tileY][tileX];
+    return this.tiles[tileY][tileX];
   }
 
   private isCollision(worldX: number, worldY: number): boolean {
-    // Check collision box (smaller than sprite)
-    const hitboxSize = RENDER_TILE_SIZE * 0.4;
+    const hitboxSize = this.tileSize * 0.35;
     const corners = [
       { x: worldX - hitboxSize, y: worldY - hitboxSize },
       { x: worldX + hitboxSize, y: worldY - hitboxSize },
@@ -286,11 +495,21 @@ export class VillageRenderer {
   }
 
   private checkDungeonEntry(): boolean {
-    const tileX = Math.floor(this.playerState.x / RENDER_TILE_SIZE);
-    const tileY = Math.floor(this.playerState.y / RENDER_TILE_SIZE);
+    const tileX = Math.floor(this.playerState.x / this.tileSize);
+    const tileY = Math.floor(this.playerState.y / this.tileSize);
+    return tileY <= 4 && tileX >= 17 && tileX <= 21;
+  }
 
-    // Check if near dungeon gate (y <= 3 and center x)
-    return tileY <= 3 && tileX >= 13 && tileX <= 16;
+  private getNearbyNPC(): NPC | null {
+    const playerTileX = Math.floor(this.playerState.x / this.tileSize);
+    const playerTileY = Math.floor(this.playerState.y / this.tileSize);
+
+    for (const npc of this.npcs) {
+      const dx = Math.abs(npc.x - playerTileX);
+      const dy = Math.abs(npc.y - playerTileY);
+      if (dx <= 2 && dy <= 2) return npc;
+    }
+    return null;
   }
 
   update(time: number): void {
@@ -299,16 +518,28 @@ export class VillageRenderer {
     this.ambientTime += deltaTime;
 
     // Player movement
-    const speed = 4;
+    const speed = GAME_CONFIG.PLAYER_SPEED;
     let dx = 0;
     let dy = 0;
 
-    if (this.keys.has("w") || this.keys.has("arrowup")) dy -= speed;
-    if (this.keys.has("s") || this.keys.has("arrowdown")) dy += speed;
-    if (this.keys.has("a") || this.keys.has("arrowleft")) dx -= speed;
-    if (this.keys.has("d") || this.keys.has("arrowright")) dx += speed;
+    if (this.keys.has("w") || this.keys.has("arrowup")) {
+      dy -= speed;
+      this.playerState.facing = "up";
+    }
+    if (this.keys.has("s") || this.keys.has("arrowdown")) {
+      dy += speed;
+      this.playerState.facing = "down";
+    }
+    if (this.keys.has("a") || this.keys.has("arrowleft")) {
+      dx -= speed;
+      this.playerState.facing = "left";
+    }
+    if (this.keys.has("d") || this.keys.has("arrowright")) {
+      dx += speed;
+      this.playerState.facing = "right";
+    }
 
-    // Normalize diagonal movement
+    // Normalize diagonal
     if (dx !== 0 && dy !== 0) {
       dx *= 0.707;
       dy *= 0.707;
@@ -325,19 +556,23 @@ export class VillageRenderer {
       this.playerState.y = newY;
     }
 
-    // Update player animation
+    // Animation
     this.playerState.isMoving = dx !== 0 || dy !== 0;
     if (this.playerState.isMoving) {
-      this.playerSprite.setAnimation("run");
-      if (dx < 0) this.playerSprite.setDirection("left");
-      else if (dx > 0) this.playerSprite.setDirection("right");
+      this.playerState.animFrame = Math.floor(this.ambientTime / 120) % 4;
     } else {
-      this.playerSprite.setAnimation("idle");
+      this.playerState.animFrame = 0;
     }
-    this.playerSprite.update(deltaTime);
 
     // Update camera
-    this.camera.setTarget(this.playerState.x, this.playerState.y);
+    const mapWidth = GAME_CONFIG.VILLAGE_WIDTH * this.tileSize;
+    const mapHeight = GAME_CONFIG.VILLAGE_HEIGHT * this.tileSize;
+    this.camera.setTarget(
+      this.playerState.x,
+      this.playerState.y,
+      mapWidth,
+      mapHeight
+    );
     this.camera.update();
 
     // Check dungeon entry
@@ -349,237 +584,584 @@ export class VillageRenderer {
   render(): void {
     const { width, height } = this.canvas.getBoundingClientRect();
 
-    // Clear with night sky gradient
-    const skyGradient = this.ctx.createLinearGradient(0, 0, 0, height);
-    skyGradient.addColorStop(0, "#0a0a1a");
-    skyGradient.addColorStop(0.4, "#0f1020");
-    skyGradient.addColorStop(1, "#151828");
-    this.ctx.fillStyle = skyGradient;
+    // Sky gradient (twilight)
+    const sky = this.ctx.createLinearGradient(0, 0, 0, height);
+    sky.addColorStop(0, "#1a1a2e");
+    sky.addColorStop(0.3, "#16213e");
+    sky.addColorStop(0.7, "#0f3460");
+    sky.addColorStop(1, "#1a1a2e");
+    this.ctx.fillStyle = sky;
     this.ctx.fillRect(0, 0, width, height);
 
-    // Draw stars
+    // Stars
     this.drawStars(width, height);
 
     // Draw tilemap
-    this.drawTilemap();
+    this.drawTilemap(width, height);
+
+    // Draw buildings
+    this.drawBuildings();
+
+    // Draw NPCs
+    this.drawNPCs();
 
     // Draw player
     this.drawPlayer();
 
-    // Draw ambient effects
-    this.drawAmbientEffects(width, height);
-
     // Draw dungeon gate glow
-    this.drawDungeonGateGlow();
+    this.drawDungeonGlow();
 
-    // Draw vignette
+    // Draw ambient particles
+    this.drawParticles(width, height);
+
+    // Vignette
     this.drawVignette(width, height);
   }
 
   private drawStars(width: number, height: number): void {
     this.ctx.fillStyle = "#ffffff";
-    for (let i = 0; i < 80; i++) {
+    for (let i = 0; i < 100; i++) {
       const x = (i * 137.5 + this.ambientTime * 0.001) % width;
       const y = (i * 73.7) % (height * 0.5);
       const twinkle = Math.sin(this.ambientTime * 0.002 + i) * 0.4 + 0.6;
-      this.ctx.globalAlpha = twinkle * 0.7;
+      this.ctx.globalAlpha = twinkle * 0.6;
       const size = (i % 3) + 1;
       this.ctx.fillRect(x, y, size, size);
     }
     this.ctx.globalAlpha = 1;
   }
 
-  private drawTilemap(): void {
-    if (!this.groundTileset) return;
-
-    const { width, height } = this.canvas.getBoundingClientRect();
-
-    // Calculate visible tile range
-    const startX = Math.floor(this.camera.x / RENDER_TILE_SIZE);
-    const startY = Math.floor(this.camera.y / RENDER_TILE_SIZE);
-    const endX = Math.ceil((this.camera.x + width) / RENDER_TILE_SIZE);
-    const endY = Math.ceil((this.camera.y + height) / RENDER_TILE_SIZE);
+  private drawTilemap(width: number, height: number): void {
+    const startX = Math.floor(this.camera.x / this.tileSize);
+    const startY = Math.floor(this.camera.y / this.tileSize);
+    const endX = Math.ceil((this.camera.x + width) / this.tileSize) + 1;
+    const endY = Math.ceil((this.camera.y + height) / this.tileSize) + 1;
 
     for (let y = startY; y <= endY; y++) {
       for (let x = startX; x <= endX; x++) {
-        if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) continue;
+        if (
+          x < 0 ||
+          x >= GAME_CONFIG.VILLAGE_WIDTH ||
+          y < 0 ||
+          y >= GAME_CONFIG.VILLAGE_HEIGHT
+        )
+          continue;
 
-        const tile = this.map[y][x];
-        const screenX = x * RENDER_TILE_SIZE - this.camera.x;
-        const screenY = y * RENDER_TILE_SIZE - this.camera.y;
+        const tile = this.tiles[y][x];
+        const screenX = x * this.tileSize - this.camera.x;
+        const screenY = y * this.tileSize - this.camera.y;
 
-        this.drawTile(tile, screenX, screenY);
+        this.drawTile(tile, screenX, screenY, x, y);
       }
     }
   }
 
-  private drawTile(tile: number, screenX: number, screenY: number): void {
-    if (!this.groundTileset) return;
+  private drawTile(
+    tile: number,
+    screenX: number,
+    screenY: number,
+    tileX: number,
+    tileY: number
+  ): void {
+    const size = this.tileSize;
+    const src = this.srcTileSize;
 
-    // Source coordinates in tileset
-    let srcX = 0;
-    let srcY = 0;
-    let tileset = this.groundTileset;
+    // Draw base grass for all tiles first
+    if (
+      this.outdoorTiles &&
+      tile !== VillageTile.Water &&
+      tile !== VillageTile.WaterEdge
+    ) {
+      this.ctx.drawImage(
+        this.outdoorTiles,
+        0,
+        0,
+        src,
+        src,
+        screenX,
+        screenY,
+        size,
+        size
+      );
+    }
 
     switch (tile) {
       case VillageTile.Grass1:
-        srcX = 0;
-        srcY = 0;
-        break;
-      case VillageTile.Grass2:
-        srcX = 1;
-        srcY = 0;
-        break;
-      case VillageTile.Grass3:
-        srcX = 2;
-        srcY = 0;
-        break;
-      case VillageTile.Path:
-        srcX = 4;
-        srcY = 0;
-        break;
-      case VillageTile.Water:
-        srcX = 8;
-        srcY = 0;
-        // Animated water effect
-        const waterOffset =
-          Math.sin(this.ambientTime * 0.003 + screenX * 0.01) * 0.5;
-        this.ctx.globalAlpha = 0.8 + waterOffset * 0.2;
-        break;
-      case VillageTile.Tree:
-        // Draw grass underneath
-        this.ctx.drawImage(
-          this.groundTileset,
-          0,
-          0,
-          TILE_SIZE,
-          TILE_SIZE,
-          screenX,
-          screenY,
-          RENDER_TILE_SIZE,
-          RENDER_TILE_SIZE
-        );
-        // Draw tree from objects tileset
-        if (this.objectsTileset) {
+        if (this.outdoorTiles) {
           this.ctx.drawImage(
-            this.objectsTileset,
+            this.outdoorTiles,
             0,
             0,
-            32,
-            32, // Tree is 2x2 tiles
-            screenX - RENDER_TILE_SIZE / 2,
-            screenY - RENDER_TILE_SIZE,
-            RENDER_TILE_SIZE * 2,
-            RENDER_TILE_SIZE * 2
-          );
-        }
-        return;
-      case VillageTile.Building:
-        // Draw building from buildings tileset
-        if (this.buildingsTileset) {
-          this.ctx.fillStyle = "#2a2a3a";
-          this.ctx.fillRect(
+            src,
+            src,
             screenX,
             screenY,
-            RENDER_TILE_SIZE,
-            RENDER_TILE_SIZE
-          );
-          this.ctx.fillStyle = "#1a1a2a";
-          this.ctx.fillRect(
-            screenX + 4,
-            screenY + 4,
-            RENDER_TILE_SIZE - 8,
-            RENDER_TILE_SIZE - 8
+            size,
+            size
           );
         }
-        return;
-      case VillageTile.DungeonGate:
-        // Draw ominous dungeon entrance
-        this.drawDungeonGateTile(screenX, screenY);
-        return;
-      default:
-        srcX = 0;
-        srcY = 0;
-    }
+        break;
 
-    this.ctx.drawImage(
-      tileset,
-      srcX * TILE_SIZE,
-      srcY * TILE_SIZE,
-      TILE_SIZE,
-      TILE_SIZE,
-      screenX,
-      screenY,
-      RENDER_TILE_SIZE,
-      RENDER_TILE_SIZE
-    );
-    this.ctx.globalAlpha = 1;
+      case VillageTile.Grass2:
+        if (this.outdoorTiles) {
+          this.ctx.drawImage(
+            this.outdoorTiles,
+            src,
+            0,
+            src,
+            src,
+            screenX,
+            screenY,
+            size,
+            size
+          );
+        }
+        break;
+
+      case VillageTile.Grass3:
+        if (this.outdoorTiles) {
+          this.ctx.drawImage(
+            this.outdoorTiles,
+            src * 2,
+            0,
+            src,
+            src,
+            screenX,
+            screenY,
+            size,
+            size
+          );
+        }
+        break;
+
+      case VillageTile.GrassFlower:
+        if (this.outdoorTiles) {
+          this.ctx.drawImage(
+            this.outdoorTiles,
+            src * 3,
+            0,
+            src,
+            src,
+            screenX,
+            screenY,
+            size,
+            size
+          );
+        }
+        break;
+
+      case VillageTile.Path:
+        if (this.outdoorTiles) {
+          this.ctx.drawImage(
+            this.outdoorTiles,
+            src * 4,
+            src,
+            src,
+            src,
+            screenX,
+            screenY,
+            size,
+            size
+          );
+        }
+        break;
+
+      case VillageTile.Water:
+        if (this.waterTiles) {
+          const waterAnim = Math.floor(this.ambientTime / 500) % 3;
+          this.ctx.drawImage(
+            this.waterTiles,
+            waterAnim * src,
+            0,
+            src,
+            src,
+            screenX,
+            screenY,
+            size,
+            size
+          );
+        } else {
+          this.ctx.fillStyle = "#1e3a5f";
+          this.ctx.fillRect(screenX, screenY, size, size);
+        }
+        break;
+
+      case VillageTile.WaterEdge:
+        if (this.waterTiles) {
+          this.ctx.drawImage(
+            this.waterTiles,
+            src * 3,
+            0,
+            src,
+            src,
+            screenX,
+            screenY,
+            size,
+            size
+          );
+        }
+        break;
+
+      case VillageTile.Bridge:
+        if (this.outdoorTiles) {
+          // Draw water underneath
+          if (this.waterTiles) {
+            this.ctx.drawImage(
+              this.waterTiles,
+              0,
+              0,
+              src,
+              src,
+              screenX,
+              screenY,
+              size,
+              size
+            );
+          }
+          // Draw bridge planks
+          this.ctx.fillStyle = "#8B4513";
+          this.ctx.fillRect(screenX, screenY + size * 0.2, size, size * 0.6);
+          this.ctx.fillStyle = "#654321";
+          for (let i = 0; i < 4; i++) {
+            this.ctx.fillRect(
+              screenX,
+              screenY + size * 0.2 + i * size * 0.15,
+              size,
+              2
+            );
+          }
+        }
+        break;
+
+      case VillageTile.Dock:
+        this.ctx.fillStyle = "#8B4513";
+        this.ctx.fillRect(screenX, screenY, size, size);
+        this.ctx.fillStyle = "#654321";
+        this.ctx.fillRect(screenX + 2, screenY, size - 4, 3);
+        this.ctx.fillRect(screenX + 2, screenY + size - 3, size - 4, 3);
+        break;
+
+      case VillageTile.Tree:
+        // Draw tree
+        this.ctx.fillStyle = "#2d5a27";
+        this.ctx.beginPath();
+        this.ctx.moveTo(screenX + size / 2, screenY);
+        this.ctx.lineTo(screenX + size, screenY + size * 0.7);
+        this.ctx.lineTo(screenX, screenY + size * 0.7);
+        this.ctx.closePath();
+        this.ctx.fill();
+        // Trunk
+        this.ctx.fillStyle = "#654321";
+        this.ctx.fillRect(
+          screenX + size * 0.35,
+          screenY + size * 0.6,
+          size * 0.3,
+          size * 0.4
+        );
+        break;
+
+      case VillageTile.Bush:
+        this.ctx.fillStyle = "#3d7a3d";
+        this.ctx.beginPath();
+        this.ctx.arc(
+          screenX + size / 2,
+          screenY + size * 0.6,
+          size * 0.4,
+          0,
+          Math.PI * 2
+        );
+        this.ctx.fill();
+        break;
+
+      case VillageTile.Rock:
+        this.ctx.fillStyle = "#666";
+        this.ctx.beginPath();
+        this.ctx.ellipse(
+          screenX + size / 2,
+          screenY + size * 0.6,
+          size * 0.4,
+          size * 0.3,
+          0,
+          0,
+          Math.PI * 2
+        );
+        this.ctx.fill();
+        this.ctx.fillStyle = "#888";
+        this.ctx.beginPath();
+        this.ctx.ellipse(
+          screenX + size / 2,
+          screenY + size * 0.5,
+          size * 0.3,
+          size * 0.2,
+          0,
+          0,
+          Math.PI * 2
+        );
+        this.ctx.fill();
+        break;
+
+      case VillageTile.Fence:
+        if (this.fenceTiles) {
+          this.ctx.drawImage(
+            this.fenceTiles,
+            0,
+            0,
+            src,
+            src,
+            screenX,
+            screenY,
+            size,
+            size
+          );
+        } else {
+          this.ctx.fillStyle = "#8B4513";
+          this.ctx.fillRect(
+            screenX + size * 0.1,
+            screenY + size * 0.3,
+            size * 0.1,
+            size * 0.6
+          );
+          this.ctx.fillRect(
+            screenX + size * 0.8,
+            screenY + size * 0.3,
+            size * 0.1,
+            size * 0.6
+          );
+          this.ctx.fillRect(screenX, screenY + size * 0.4, size, size * 0.1);
+          this.ctx.fillRect(screenX, screenY + size * 0.7, size, size * 0.1);
+        }
+        break;
+
+      case VillageTile.DungeonGate:
+        // Dark ominous gate
+        this.ctx.fillStyle = "#1a1a28";
+        this.ctx.fillRect(screenX, screenY, size, size);
+        // Glowing runes
+        const runeGlow = Math.sin(this.ambientTime * 0.003) * 0.3 + 0.7;
+        this.ctx.fillStyle = `rgba(255, 107, 53, ${runeGlow})`;
+        this.ctx.fillRect(
+          screenX + size * 0.1,
+          screenY + size * 0.2,
+          size * 0.2,
+          size * 0.1
+        );
+        this.ctx.fillRect(
+          screenX + size * 0.7,
+          screenY + size * 0.2,
+          size * 0.2,
+          size * 0.1
+        );
+        break;
+    }
   }
 
-  private drawDungeonGateTile(screenX: number, screenY: number): void {
-    // Dark stone base
-    this.ctx.fillStyle = "#1a1a28";
-    this.ctx.fillRect(screenX, screenY, RENDER_TILE_SIZE, RENDER_TILE_SIZE);
+  private drawBuildings(): void {
+    for (const building of this.buildings) {
+      if (building.type === "dungeon") continue; // Dungeon gate drawn in tiles
 
-    // Gate archway
-    this.ctx.fillStyle = "#0a0a10";
-    this.ctx.fillRect(
-      screenX + 8,
-      screenY + 8,
-      RENDER_TILE_SIZE - 16,
-      RENDER_TILE_SIZE - 8
-    );
+      const screenX = building.x * this.tileSize - this.camera.x;
+      const screenY = building.y * this.tileSize - this.camera.y;
+      const width = building.width * this.tileSize;
+      const height = building.height * this.tileSize;
 
-    // Glowing runes
-    const runeGlow = Math.sin(this.ambientTime * 0.003) * 0.3 + 0.7;
-    this.ctx.fillStyle = `rgba(255, 100, 50, ${runeGlow})`;
-    this.ctx.fillRect(screenX + 4, screenY + 4, 4, 4);
-    this.ctx.fillRect(screenX + RENDER_TILE_SIZE - 8, screenY + 4, 4, 4);
+      // Check if on screen
+      if (
+        screenX + width < 0 ||
+        screenX > this.canvas.getBoundingClientRect().width
+      )
+        continue;
+      if (
+        screenY + height < 0 ||
+        screenY > this.canvas.getBoundingClientRect().height
+      )
+        continue;
+
+      // Building base
+      let roofColor = "#8B0000";
+      let wallColor = "#D2B48C";
+
+      if (building.type === "tavern") {
+        roofColor = "#8B4513";
+        wallColor = "#DEB887";
+      } else if (building.type === "shop") {
+        roofColor = "#2F4F4F";
+        wallColor = "#D2B48C";
+      } else if (building.type === "blacksmith") {
+        roofColor = "#4a4a4a";
+        wallColor = "#8B7355";
+      }
+
+      // Wall
+      this.ctx.fillStyle = wallColor;
+      this.ctx.fillRect(screenX, screenY + height * 0.3, width, height * 0.7);
+
+      // Roof
+      this.ctx.fillStyle = roofColor;
+      this.ctx.beginPath();
+      this.ctx.moveTo(screenX - width * 0.1, screenY + height * 0.35);
+      this.ctx.lineTo(screenX + width / 2, screenY);
+      this.ctx.lineTo(screenX + width * 1.1, screenY + height * 0.35);
+      this.ctx.closePath();
+      this.ctx.fill();
+
+      // Door
+      this.ctx.fillStyle = "#654321";
+      this.ctx.fillRect(
+        screenX + width * 0.4,
+        screenY + height * 0.6,
+        width * 0.2,
+        height * 0.4
+      );
+
+      // Windows
+      this.ctx.fillStyle = "#FFD700";
+      const windowGlow = Math.sin(this.ambientTime * 0.002) * 0.2 + 0.8;
+      this.ctx.globalAlpha = windowGlow;
+      this.ctx.fillRect(
+        screenX + width * 0.15,
+        screenY + height * 0.45,
+        width * 0.15,
+        height * 0.15
+      );
+      this.ctx.fillRect(
+        screenX + width * 0.7,
+        screenY + height * 0.45,
+        width * 0.15,
+        height * 0.15
+      );
+      this.ctx.globalAlpha = 1;
+
+      // Sign
+      this.ctx.fillStyle = "#000";
+      this.ctx.font = '10px "Press Start 2P", monospace';
+      this.ctx.fillText(building.name, screenX + 4, screenY + height * 0.25);
+    }
+  }
+
+  private drawNPCs(): void {
+    for (const npc of this.npcs) {
+      const screenX = npc.x * this.tileSize - this.camera.x;
+      const screenY = npc.y * this.tileSize - this.camera.y;
+      const size = this.tileSize;
+
+      // Simple NPC representation
+      // Body
+      this.ctx.fillStyle = "#4a4a8a";
+      this.ctx.fillRect(
+        screenX + size * 0.25,
+        screenY + size * 0.4,
+        size * 0.5,
+        size * 0.5
+      );
+
+      // Head
+      this.ctx.fillStyle = "#FFE4C4";
+      this.ctx.beginPath();
+      this.ctx.arc(
+        screenX + size / 2,
+        screenY + size * 0.3,
+        size * 0.2,
+        0,
+        Math.PI * 2
+      );
+      this.ctx.fill();
+
+      // Exclamation mark if close
+      const playerTileX = Math.floor(this.playerState.x / this.tileSize);
+      const playerTileY = Math.floor(this.playerState.y / this.tileSize);
+      const dist =
+        Math.abs(npc.x - playerTileX) + Math.abs(npc.y - playerTileY);
+
+      if (dist <= 3) {
+        const bounce = Math.sin(this.ambientTime * 0.005) * 5;
+        this.ctx.fillStyle = "#FFD700";
+        this.ctx.font = 'bold 16px "Press Start 2P", monospace';
+        this.ctx.fillText("!", screenX + size * 0.4, screenY - 10 + bounce);
+      }
+    }
   }
 
   private drawPlayer(): void {
     const screenX = this.playerState.x - this.camera.x;
     const screenY = this.playerState.y - this.camera.y;
+    const size = this.tileSize;
 
-    // Draw shadow
+    // Shadow
     this.ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
     this.ctx.beginPath();
-    this.ctx.ellipse(screenX, screenY + 30, 20, 8, 0, 0, Math.PI * 2);
+    this.ctx.ellipse(
+      screenX,
+      screenY + size * 0.4,
+      size * 0.3,
+      size * 0.1,
+      0,
+      0,
+      Math.PI * 2
+    );
     this.ctx.fill();
 
-    // Draw sprite
-    this.playerSprite.draw(this.ctx, screenX, screenY, 0.5, { shadow: false });
+    // Player body
+    this.ctx.fillStyle = COLORS.playerMain;
+    this.ctx.fillRect(
+      screenX - size * 0.2,
+      screenY - size * 0.3,
+      size * 0.4,
+      size * 0.5
+    );
+
+    // Head
+    this.ctx.fillStyle = "#FFE4C4";
+    this.ctx.beginPath();
+    this.ctx.arc(screenX, screenY - size * 0.35, size * 0.2, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // Glow effect
+    const glow = this.ctx.createRadialGradient(
+      screenX,
+      screenY,
+      0,
+      screenX,
+      screenY,
+      size
+    );
+    glow.addColorStop(0, "rgba(255, 107, 53, 0.3)");
+    glow.addColorStop(1, "transparent");
+    this.ctx.fillStyle = glow;
+    this.ctx.fillRect(screenX - size, screenY - size, size * 2, size * 2);
   }
 
-  private drawDungeonGateGlow(): void {
-    // Gate position on screen
-    const gateScreenX = 14.5 * RENDER_TILE_SIZE - this.camera.x;
-    const gateScreenY = 1.5 * RENDER_TILE_SIZE - this.camera.y;
+  private drawDungeonGlow(): void {
+    const gateX = 19 * this.tileSize - this.camera.x;
+    const gateY = 1.5 * this.tileSize - this.camera.y;
 
-    // Pulsing glow
     const pulse = Math.sin(this.ambientTime * 0.002) * 0.3 + 0.7;
     const gradient = this.ctx.createRadialGradient(
-      gateScreenX,
-      gateScreenY,
+      gateX,
+      gateY,
       0,
-      gateScreenX,
-      gateScreenY,
-      150
+      gateX,
+      gateY,
+      this.tileSize * 4
     );
-    gradient.addColorStop(0, `rgba(255, 80, 30, ${0.4 * pulse})`);
+    gradient.addColorStop(0, `rgba(255, 80, 30, ${0.5 * pulse})`);
     gradient.addColorStop(0.5, `rgba(255, 50, 20, ${0.2 * pulse})`);
     gradient.addColorStop(1, "transparent");
 
     this.ctx.fillStyle = gradient;
-    this.ctx.fillRect(gateScreenX - 150, gateScreenY - 150, 300, 300);
+    this.ctx.fillRect(
+      gateX - this.tileSize * 4,
+      gateY - this.tileSize * 4,
+      this.tileSize * 8,
+      this.tileSize * 8
+    );
   }
 
-  private drawAmbientEffects(width: number, height: number): void {
-    // Floating particles
-    this.ctx.fillStyle = "rgba(255, 200, 100, 0.3)";
-    for (let i = 0; i < 20; i++) {
-      const x = (i * 97 + this.ambientTime * 0.02) % width;
-      const y = (i * 53 + Math.sin(this.ambientTime * 0.001 + i) * 20) % height;
+  private drawParticles(width: number, height: number): void {
+    // Floating ember particles
+    this.ctx.fillStyle = "rgba(255, 200, 100, 0.4)";
+    for (let i = 0; i < 30; i++) {
+      const x = (i * 97 + this.ambientTime * 0.015) % width;
+      const y = (i * 53 + Math.sin(this.ambientTime * 0.001 + i) * 30) % height;
       this.ctx.beginPath();
       this.ctx.arc(x, y, 2, 0, Math.PI * 2);
       this.ctx.fill();

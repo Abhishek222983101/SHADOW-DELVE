@@ -1,7 +1,9 @@
 import { useState, useCallback } from "react";
 import { WalletProvider } from "./providers/WalletProvider";
 import { Header } from "./components/Header";
+import { LandingPage } from "./components/LandingPage";
 import { VillageScreen } from "./components/VillageScreen";
+import { LobbyScreen } from "./components/LobbyScreen";
 import { DungeonScreen } from "./components/DungeonScreen";
 import { CombatScreen } from "./components/CombatScreen";
 import { MAX_HEALTH } from "./game/constants";
@@ -10,7 +12,7 @@ import { MAX_HEALTH } from "./game/constants";
 // GAME SCREENS
 // ============================================
 
-type GameScreen = "village" | "dungeon" | "combat";
+type GameScreen = "landing" | "village" | "lobby" | "dungeon" | "combat";
 
 // ============================================
 // ENEMY TYPE (shared between screens)
@@ -23,6 +25,16 @@ interface Enemy {
 }
 
 // ============================================
+// MATCH STATE (for PvP)
+// ============================================
+
+interface MatchState {
+  matchId: string | null;
+  opponentPubkey: string | null;
+  isHost: boolean;
+}
+
+// ============================================
 // GAME STATE
 // ============================================
 
@@ -30,6 +42,7 @@ interface GameState {
   playerHealth: number;
   gold: number;
   currentEnemy: Enemy | null;
+  match: MatchState;
 }
 
 // ============================================
@@ -37,24 +50,63 @@ interface GameState {
 // ============================================
 
 function GameContent() {
-  const [screen, setScreen] = useState<GameScreen>("village");
+  const [screen, setScreen] = useState<GameScreen>("landing");
   const [gameState, setGameState] = useState<GameState>({
     playerHealth: MAX_HEALTH,
     gold: 0,
     currentEnemy: null,
+    match: {
+      matchId: null,
+      opponentPubkey: null,
+      isHost: false,
+    },
   });
 
-  // Handle entering dungeon from village
-  const handleEnterDungeon = useCallback(() => {
-    setScreen("dungeon");
-  }, []);
-
-  // Handle exiting dungeon back to village
-  const handleExitDungeon = useCallback(() => {
+  // Handle entering game from landing page
+  const handleEnterGame = useCallback(() => {
     setScreen("village");
   }, []);
 
-  // Handle combat encounter
+  // Handle opening lobby from village (approaching dungeon gate)
+  const handleOpenLobby = useCallback(() => {
+    setScreen("lobby");
+  }, []);
+
+  // Handle closing lobby (back to village)
+  const handleCloseLobby = useCallback(() => {
+    setScreen("village");
+  }, []);
+
+  // Handle match start from lobby
+  const handleMatchStart = useCallback(
+    (matchId: string, opponentPubkey: string | null, isHost: boolean) => {
+      setGameState((prev) => ({
+        ...prev,
+        match: {
+          matchId,
+          opponentPubkey,
+          isHost,
+        },
+      }));
+      setScreen("dungeon");
+    },
+    []
+  );
+
+  // Handle exiting dungeon back to village
+  const handleExitDungeon = useCallback(() => {
+    setGameState((prev) => ({
+      ...prev,
+      match: {
+        matchId: null,
+        opponentPubkey: null,
+        isHost: false,
+      },
+    }));
+    setScreen("village");
+  }, []);
+
+  // Handle combat encounter (PvP collision!)
   const handleCombatEncounter = useCallback((enemy: Enemy) => {
     setGameState((prev) => ({
       ...prev,
@@ -78,6 +130,11 @@ function GameContent() {
         setGameState((prev) => ({
           ...prev,
           playerHealth: MAX_HEALTH,
+          match: {
+            matchId: null,
+            opponentPubkey: null,
+            isHost: false,
+          },
         }));
         setScreen("village");
       } else {
@@ -90,6 +147,17 @@ function GameContent() {
 
   // Render current screen
   switch (screen) {
+    case "landing":
+      return <LandingPage onEnterGame={handleEnterGame} />;
+
+    case "lobby":
+      return (
+        <LobbyScreen
+          onClose={handleCloseLobby}
+          onMatchStart={handleMatchStart}
+        />
+      );
+
     case "combat":
       return (
         <CombatScreen
@@ -113,12 +181,13 @@ function GameContent() {
           onCombat={handleCombatEncounter}
           initialHealth={gameState.playerHealth}
           initialGold={gameState.gold}
+          matchId={gameState.match.matchId}
         />
       );
 
     case "village":
     default:
-      return <VillageScreen onEnterDungeon={handleEnterDungeon} />;
+      return <VillageScreen onEnterDungeon={handleOpenLobby} />;
   }
 }
 

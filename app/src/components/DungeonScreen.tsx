@@ -41,6 +41,7 @@ interface DungeonScreenProps {
   onCombat: (enemy: Enemy) => void;
   initialHealth?: number;
   initialGold?: number;
+  matchId?: string | null; // TEE match ID for PvP
 }
 
 // ============================================
@@ -193,7 +194,7 @@ function generateEnemies(
   }
 
   for (let i = 0; i < Math.min(count, floorTiles.length); i++) {
-    const types: Enemy["type"][] = ["skeleton", "skeleton", "demon"];
+    const types: Enemy["type"][] = ["boss", "demon", "boss"]; // Make them scarier for demo
     enemies.push({
       position: floorTiles[i],
       health: 50 + Math.floor(Math.random() * 50),
@@ -440,8 +441,22 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
           (e) => e.position.x === newX && e.position.y === newY
         );
         if (enemyIdx !== -1) {
-          // Enter combat with this enemy
-          onCombat(prev.enemies[enemyIdx]);
+          // Mock prompt for combat in demo
+          if (
+            confirm(
+              "Enemy encountered! Enter combat? (Demo mode: press Cancel to ignore)"
+            )
+          ) {
+            onCombat(prev.enemies[enemyIdx]);
+          } else {
+            // Remove enemy to prevent infinite triggers
+            const newEnemies = [...prev.enemies];
+            newEnemies.splice(enemyIdx, 1);
+            return {
+              ...prev,
+              enemies: newEnemies,
+            };
+          }
           return prev; // Don't move into enemy tile
         }
 

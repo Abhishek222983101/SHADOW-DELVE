@@ -207,9 +207,7 @@ export class PixelDungeonRenderer {
     if (!isVisible && !isExplored) {
       // Complete darkness
       this.ctx.fillStyle = "#050508";
-      this.ctx.fillStyle = "#555555";
-        this.ctx.fillRect(x, y, size, size);
-        return;
+      this.ctx.fillRect(x, y, size, size);
       return;
     }
 
@@ -226,15 +224,16 @@ export class PixelDungeonRenderer {
         tileCoord = { x: floorVariant % 4, y: 0 };
         break;
       case TileType.Wall:
-        // Smart wall tiling would go here
-        tileCoord = { x: 0, y: 1 };
-        // Dark grey color for visibility instead of relying on tile sheet
-        this.ctx.fillStyle = "#555555";
-        this.ctx.fillStyle = "#555555";
+        // Grey color for visibility instead of relying on tile sheet
+        this.ctx.fillStyle = "#333340"; // Darker rock grey
         this.ctx.fillRect(x, y, size, size);
+        
+        // Add some "rock" texture lines
+        this.ctx.fillStyle = "#222230";
+        this.ctx.fillRect(x + size*0.1, y + size*0.1, size*0.3, size*0.1);
+        this.ctx.fillRect(x + size*0.5, y + size*0.4, size*0.4, size*0.1);
+        this.ctx.fillRect(x + size*0.2, y + size*0.7, size*0.5, size*0.1);
         return;
-        return;
-        break;
       case TileType.Exit:
         tileCoord = { x: 2, y: 3 }; // Stairs
         break;
@@ -262,20 +261,14 @@ export class PixelDungeonRenderer {
       this.ctx.fillStyle =
         tileType === TileType.Floor
           ? "#2a2a3d"
-          : tileType === TileType.Wall
-          ? "#1a1a28"
           : "#2d5a3d";
-      this.ctx.fillStyle = "#555555";
-        this.ctx.fillRect(x, y, size, size);
-        return;
+      this.ctx.fillRect(x, y, size, size);
     }
 
     // Fog of war effect for explored but not visible
     if (isExplored && !isVisible) {
       this.ctx.fillStyle = "rgba(5, 5, 10, 0.65)";
-      this.ctx.fillStyle = "#555555";
-        this.ctx.fillRect(x, y, size, size);
-        return;
+      this.ctx.fillRect(x, y, size, size);
     }
   }
 
@@ -358,11 +351,20 @@ export class PixelDungeonRenderer {
       centerY,
       size * 0.7
     );
-    glowGrad.addColorStop(0, `rgba(255, 215, 0, ${0.5 * pulse})`);
-    glowGrad.addColorStop(0.5, `rgba(255, 180, 0, ${0.2 * pulse})`);
+    glowGrad.addColorStop(0, `rgba(255, 255, 0, ${0.8 * pulse})`);
+    glowGrad.addColorStop(0.5, `rgba(255, 200, 0, ${0.5 * pulse})`);
     glowGrad.addColorStop(1, "transparent");
     this.ctx.fillStyle = glowGrad;
-    this.ctx.fillRect(x - size * 0.2, y - size * 0.2, size * 1.4, size * 1.4);
+    this.ctx.fillRect(x - size * 0.5, y - size * 0.5, size * 2, size * 2); // Make glow bigger
+    
+    // Draw a prominent diamond/star above chest
+    this.ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`;
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerX, centerY - size*0.4);
+    this.ctx.lineTo(centerX + size*0.1, centerY - size*0.2);
+    this.ctx.lineTo(centerX, centerY);
+    this.ctx.lineTo(centerX - size*0.1, centerY - size*0.2);
+    this.ctx.fill();
 
     // Draw chest from tileset
     if (this.tilesetImg) {
