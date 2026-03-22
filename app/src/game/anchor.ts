@@ -336,6 +336,24 @@ export class ShadowDelveClient {
     }
   }
 
+  async getMatchStateTEE(matchId: BN): Promise<MatchStateAccount | null> {
+    const teeProgram = this.getTEEProgram();
+    if (!teeProgram) {
+      console.warn("TEE connection not initialized, falling back to L1");
+      return this.getMatchState(matchId);
+    }
+
+    try {
+      const [matchPDA] = this.getMatchPDA(matchId);
+      // @ts-expect-error - IDL types are dynamically generated
+      const account = await teeProgram.account.matchState.fetch(matchPDA);
+      return account as unknown as MatchStateAccount;
+    } catch (err) {
+      console.warn("Failed to fetch match from TEE, falling back to L1:", err);
+      return this.getMatchState(matchId);
+    }
+  }
+
   // ============================================
   // WRITE OPERATIONS - L1 (Match Setup)
   // ============================================
@@ -360,7 +378,9 @@ export class ShadowDelveClient {
   async joinMatch(matchId: BN): Promise<string> {
     if (!this.wallet) throw new Error("Wallet not connected");
 
-    const program = this.getTEEProgram() || this.program;
+    // ALWAYS use the L1 program for joinMatch because it must happen
+    // BEFORE the match is fully delegated and locked by the TEE
+    const program = this.program;
 
     const [matchPDA] = this.getMatchPDA(matchId);
 

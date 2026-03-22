@@ -128,14 +128,7 @@ export const LobbyScreen: FC<LobbyScreenProps> = ({
       } else {
         throw new Error("Wallet does not support signMessage");
       }
-      setStatusMessage("TEE CONNECTED! DELEGATING TO PER...");
-
-      // Delegate dungeon FIRST (before match, since dungeon PDA depends on match_state)
-      // Then delegate match (this transfers match_state ownership to delegation program)
-      setLobbyState("delegating");
-      await client.delegateDungeon(matchId);
-      await client.delegateMatch(matchId);
-      setStatusMessage("WAITING FOR OPPONENT...");
+      setStatusMessage("WAITING FOR OPPONENT TO JOIN...");
 
       setMatchInfo({
         matchId,
@@ -158,13 +151,13 @@ export const LobbyScreen: FC<LobbyScreenProps> = ({
 
     setLobbyState("joining");
     setError(null);
-    setStatusMessage("JOINING MATCH...");
+    setStatusMessage("JOINING MATCH ON DEVNET...");
 
     try {
       const matchId = new BN(joinMatchId);
       const client = getShadowDelveClient();
 
-      // Check match exists
+      // Check match exists on L1 Devnet first!
       const match = await client.getMatchState(matchId);
       if (!match) {
         throw new Error("Match not found");
@@ -175,52 +168,75 @@ export const LobbyScreen: FC<LobbyScreenProps> = ({
         throw new Error("Match is not available to join");
       }
 
-      // Initialize TEE connection BEFORE joining
-      // because the match state is already delegated to the TEE by Player 1
+      // Join match on L1 (Devnet) BEFORE connecting to TEE
+      // We do this on L1 because the match_state shouldn't be delegated yet
+      await client.joinMatch(matchId);
+      setStatusMessage("JOINED! CONNECTING TO TEE...");
+
+      // Now connect to TEE for the actual gameplay
       if (signMessage) {
         await client.initTEEConnection(signMessage);
       } else {
         throw new Error("Wallet does not support signMessage");
       }
-      setStatusMessage("TEE CONNECTED! JOINING MATCH...");
-
-      // Join match on TEE
-      await client.joinMatch(matchId);
-      setStatusMessage("JOINED! STARTING MATCH...");
-
-      // Start the match on TEE
-      await client.startMatch(matchId);
-      setStatusMessage("MATCH STARTED! ENTERING DUNGEON...");
+      setStatusMessage("TEE CONNECTED! WAITING FOR HOST TO START...");
 
       setMatchInfo({
         matchId,
         player1: match.player1.toBase58(),
         player2: anchorWallet.publicKey.toBase58(),
-        status: MatchStatus.Active,
+        status: MatchStatus.Ready, // Ready state, waiting for host to start
         isHost: false,
       });
 
-      // Small delay then start
-      setTimeout(() => {
-        onMatchStart(matchId.toString(), match.player1.toBase58(), false);
-      }, 1500);
     } catch (err) {
       console.error("Join match error:", err);
       setError(err instanceof Error ? err.message : "Failed to join match");
       setLobbyState("error");
     }
-  }, [anchorWallet, joinMatchId, onMatchStart, signMessage]);
+  }, [anchorWallet, joinMatchId, signMessage]);
 
   // Start game when ready
-  const handleStartGame = useCallback(() => {
-    if (!matchInfo) return;
+  const handleStartGame = useCallback(async () => {
+    if (!matchInfo || !anchorWallet) return;
 
-    onMatchStart(
-      matchInfo.matchId.toString(),
-      matchInfo.player2,
-      matchInfo.isHost
-    );
-  }, [matchInfo, onMatchStart]);
+    if (matchInfo.isHost) {
+      setLobbyState("delegating");
+      setStatusMessage("DELEGATING MATCH TO TEE...");
+
+      try {
+        const client = getShadowDelveClient();
+        
+        // Host delegates the match state to the TEE AFTER player 2 joins
+        await client.delegateDungeon(matchInfo.matchId);
+        await client.delegateMatch(matchInfo.matchId);
+        
+        setStatusMessage("MATCH DELEGATED! STARTING...");
+        
+        // Wait a moment for TEE sync
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        
+        await client.startMatch(matchInfo.matchId);
+        
+        onMatchStart(
+          matchInfo.matchId.toString(),
+          matchInfo.player2,
+          matchInfo.isHost
+        );
+      } catch (err) {
+        console.error("Start match error:", err);
+        setError(err instanceof Error ? err.message : "Failed to start match");
+        setLobbyState("error");
+      }
+    } else {
+      // Player 2 just waits for host to start
+      onMatchStart(
+        matchInfo.matchId.toString(),
+        matchInfo.player2,
+        matchInfo.isHost
+      );
+    }
+  }, [matchInfo, anchorWallet, onMatchStart]);
 
   // Reset state
   const handleReset = useCallback(() => {
