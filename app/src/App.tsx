@@ -171,6 +171,9 @@ function GameContent() {
                 }
               : undefined
           }
+          matchId={gameState.match.matchId}
+          opponentPubkey={gameState.match.opponentPubkey}
+          isHost={gameState.match.isHost}
         />
       );
 
@@ -182,6 +185,8 @@ function GameContent() {
           initialHealth={gameState.playerHealth}
           initialGold={gameState.gold}
           matchId={gameState.match.matchId}
+          opponentPubkey={gameState.match.opponentPubkey}
+          isHost={gameState.match.isHost}
         />
       );
 

@@ -6,6 +6,9 @@
 import { FC, useRef, useEffect, useState, useCallback } from "react";
 import { CombatRenderer, CombatActionType } from "../game/combatRenderer";
 import { CombatAction } from "../types/game";
+import { getShadowDelveClient } from "../game/anchor";
+import { BN } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
 
 // ============================================
 // TYPES
@@ -20,6 +23,9 @@ interface CombatScreenProps {
   onEnd: (victory: boolean, playerHealth: number, goldEarned: number) => void;
   playerHealth: number;
   enemy?: Enemy;
+  matchId?: string | null;
+  opponentPubkey?: string | null;
+  isHost?: boolean;
 }
 
 // ============================================
@@ -106,13 +112,17 @@ export const CombatScreen: FC<CombatScreenProps> = ({
   onEnd,
   playerHealth: initialPlayerHealth,
   enemy,
+  matchId,
+  opponentPubkey,
+  isHost,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<CombatRenderer | null>(null);
   const animationRef = useRef<number>(0);
+  const client = getShadowDelveClient();
 
   const [isLoaded, setIsLoaded] = useState(false);
-  const [turnPhase, setTurnPhase] = useState<"select" | "resolve" | "result">(
+  const [turnPhase, setTurnPhase] = useState<"select" | "wait" | "resolve" | "result">(
     "select"
   );
   const [timeLeft, setTimeLeft] = useState(10);
@@ -127,6 +137,29 @@ export const CombatScreen: FC<CombatScreenProps> = ({
   const [resultText, setResultText] = useState("");
   const [combatEnded, setCombatEnded] = useState(false);
 
+  // Map our UI actions to Contract actions
+  const getContractAction = (action: CombatActionType): CombatAction => {
+    switch (action) {
+      case "attack": return CombatAction.Attack;
+      case "block": return CombatAction.Block;
+      case "dodge": return CombatAction.Dodge;
+      case "heavy": return CombatAction.Heavy;
+    }
+  };
+
+  // Map Contract actions to our UI actions
+  const getUIAction = (actionStr: string | any): CombatActionType => {
+    const key = typeof actionStr === 'object' ? Object.keys(actionStr)[0] : actionStr;
+    const lower = String(key).toLowerCase();
+    
+    if (lower.includes('attack')) return "attack";
+    if (lower.includes('block')) return "block";
+    if (lower.includes('dodge')) return "dodge";
+    if (lower.includes('heavy')) return "heavy";
+    
+    return "attack"; // Default
+  };
+
   // Initialize renderer
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -134,9 +167,7 @@ export const CombatScreen: FC<CombatScreenProps> = ({
     const renderer = new CombatRenderer(canvasRef.current);
     rendererRef.current = renderer;
 
-    
     renderer.loadAssets().then(() => {
-      
       renderer.resize(window.innerWidth, window.innerHeight);
       setIsLoaded(true);
     }).catch(err => {
@@ -191,90 +222,163 @@ export const CombatScreen: FC<CombatScreenProps> = ({
     return () => clearInterval(timer);
   }, [turnPhase, combatEnded]);
 
+  // Handle playing the combat animation and applying damage
+  const playCombatAnimation = useCallback((myAction: CombatActionType, theirAction: CombatActionType) => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+
+    setTurnPhase("resolve");
+
+    // Play animations
+    renderer.setPlayerAction(myAction);
+    renderer.setEnemyAction(theirAction);
+
+    // Resolve after animation (600ms)
+    setTimeout(() => {
+      const result = resolveAction(myAction, theirAction);
+
+      // Show effects
+      if (result.playerBlocked) renderer.showBlock(true);
+      if (result.enemyBlocked) renderer.showBlock(false);
+      if (result.playerDodged) renderer.showDodge(true);
+      if (result.enemyDodged) renderer.showDodge(false);
+
+      // Show damage with delays
+      setTimeout(() => {
+        if (result.enemyDamage > 0 && !result.enemyDodged) {
+          renderer.showDamage(result.enemyDamage, false, result.playerCrit);
+          setEnemyHealth((prev) => Math.max(0, prev - result.enemyDamage));
+        }
+      }, 200);
+
+      setTimeout(() => {
+        if (result.playerDamage > 0 && !result.playerDodged) {
+          renderer.showDamage(result.playerDamage, true, result.enemyCrit);
+          setPlayerHealth((prev) => Math.max(0, prev - result.playerDamage));
+        }
+      }, 500);
+
+      // Check for combat end
+      setTimeout(() => {
+        setEnemyHealth((currentEnemyHealth) => {
+          setPlayerHealth((currentPlayerHealth) => {
+            if (currentEnemyHealth <= 0) {
+              // Victory
+              const gold = 50 + Math.floor(Math.random() * 100);
+              setGoldEarned(gold);
+              setResultText(`VICTORY! +${gold} GOLD`);
+              renderer.playDeathAnimation(false);
+              setCombatEnded(true);
+              setTurnPhase("result");
+            } else if (currentPlayerHealth <= 0) {
+              // Defeat
+              setResultText("DEFEAT!");
+              renderer.playDeathAnimation(true);
+              setCombatEnded(true);
+              setTurnPhase("result");
+            } else {
+              // Next turn
+              setTurnPhase("select");
+              setTimeLeft(10);
+              setSelectedAction(null);
+            }
+            return currentPlayerHealth;
+          });
+          return currentEnemyHealth;
+        });
+      }, 1000);
+    }, 600);
+  }, []);
+
+  // Poll for combat resolution if we are waiting
+  useEffect(() => {
+    if (turnPhase !== "wait" || !matchId || combatEnded) return;
+
+    let isPolling = true;
+
+    const pollCombatState = async () => {
+      if (!isPolling) return;
+
+      try {
+        const matchBn = new BN(matchId);
+        const combatState = await client.getCombatStateTEE(matchBn);
+        
+        // If combat is resolved or opponent has locked their action, resolve
+        if (combatState) {
+          // Determine if both players have locked actions
+          // The structure of combatState depends on your Anchor program
+          // Assuming it has something like player1Action and player2Action
+          const hasP1Action = combatState.player1Action && Object.keys(combatState.player1Action).length > 0;
+          const hasP2Action = combatState.player2Action && Object.keys(combatState.player2Action).length > 0;
+          
+          if (hasP1Action && hasP2Action) {
+            // Both actions locked! We can resolve.
+            console.log("Both actions locked. Resolving combat...", combatState);
+            
+            // If we are host, resolve on contract
+            if (isHost && opponentPubkey) {
+              try {
+                // VRF mock for hackathon
+                await client.resolveCombat(matchBn, new PublicKey(opponentPubkey));
+              } catch (e) {
+                console.error("Failed to resolve combat on contract:", e);
+              }
+            }
+            
+            // Get actual actions for animation
+            let p1ActionUI = getUIAction(combatState.player1Action);
+            let p2ActionUI = getUIAction(combatState.player2Action);
+            
+            const myAction = isHost ? p1ActionUI : p2ActionUI;
+            const theirAction = isHost ? p2ActionUI : p1ActionUI;
+            
+            playCombatAnimation(myAction, theirAction);
+            return; // Stop polling
+          }
+        }
+      } catch (err) {
+        console.error("Error polling combat state:", err);
+      }
+
+      if (isPolling) {
+        setTimeout(pollCombatState, 1000);
+      }
+    };
+
+    pollCombatState();
+
+    return () => {
+      isPolling = false;
+    };
+  }, [turnPhase, matchId, isHost, opponentPubkey, combatEnded, client, playCombatAnimation]);
+
+
   // Handle action selection
   const handleAction = useCallback(
-    (action: CombatActionType) => {
+    async (action: CombatActionType) => {
       if (turnPhase !== "select" || combatEnded) return;
 
       setSelectedAction(action);
-      setTurnPhase("resolve");
-
-      const renderer = rendererRef.current;
-      if (!renderer) return;
-
-      // Pick enemy action
-      const enemyAction =
-        ENEMY_ACTIONS[Math.floor(Math.random() * ENEMY_ACTIONS.length)];
-
-      // Play animations
-      renderer.setPlayerAction(action);
-      renderer.setEnemyAction(enemyAction);
-
-      // Resolve after animation (600ms)
-      setTimeout(() => {
-        const result = resolveAction(action, enemyAction);
-
-        // Show effects
-        if (result.playerBlocked) {
-          renderer.showBlock(true);
+      
+      if (matchId && opponentPubkey) {
+        // PvP Mode: Lock action on TEE
+        setTurnPhase("wait");
+        try {
+          await client.lockCombatAction(new BN(matchId), action);
+        } catch (err) {
+          console.error("Failed to lock action:", err);
+          // Fallback to local resolve on error
+          const enemyAction = ENEMY_ACTIONS[Math.floor(Math.random() * ENEMY_ACTIONS.length)];
+          playCombatAnimation(action, enemyAction);
         }
-        if (result.enemyBlocked) {
-          renderer.showBlock(false);
-        }
-        if (result.playerDodged) {
-          renderer.showDodge(true);
-        }
-        if (result.enemyDodged) {
-          renderer.showDodge(false);
-        }
-
-        // Show damage with delays
-        setTimeout(() => {
-          if (result.enemyDamage > 0 && !result.enemyDodged) {
-            renderer.showDamage(result.enemyDamage, false, result.playerCrit);
-            setEnemyHealth((prev) => Math.max(0, prev - result.enemyDamage));
-          }
-        }, 200);
-
-        setTimeout(() => {
-          if (result.playerDamage > 0 && !result.playerDodged) {
-            renderer.showDamage(result.playerDamage, true, result.enemyCrit);
-            setPlayerHealth((prev) => Math.max(0, prev - result.playerDamage));
-          }
-        }, 500);
-
-        // Check for combat end
-        setTimeout(() => {
-          setEnemyHealth((currentEnemyHealth) => {
-            setPlayerHealth((currentPlayerHealth) => {
-              if (currentEnemyHealth <= 0) {
-                // Victory
-                const gold = 50 + Math.floor(Math.random() * 100);
-                setGoldEarned(gold);
-                setResultText(`VICTORY! +${gold} GOLD`);
-                renderer.playDeathAnimation(false);
-                setCombatEnded(true);
-                setTurnPhase("result");
-              } else if (currentPlayerHealth <= 0) {
-                // Defeat
-                setResultText("DEFEAT!");
-                renderer.playDeathAnimation(true);
-                setCombatEnded(true);
-                setTurnPhase("result");
-              } else {
-                // Next turn
-                setTurnPhase("select");
-                setTimeLeft(10);
-                setSelectedAction(null);
-              }
-              return currentPlayerHealth;
-            });
-            return currentEnemyHealth;
-          });
-        }, 1000);
-      }, 600);
+      } else {
+        // PvE / Local Mode
+        setTurnPhase("resolve");
+        const enemyAction = ENEMY_ACTIONS[Math.floor(Math.random() * ENEMY_ACTIONS.length)];
+        playCombatAnimation(action, enemyAction);
+      }
     },
-    [turnPhase, combatEnded]
+    [turnPhase, combatEnded, matchId, opponentPubkey, client, playCombatAnimation]
   );
 
   // Handle combat end
@@ -368,7 +472,7 @@ export const CombatScreen: FC<CombatScreenProps> = ({
               marginBottom: "4px",
             }}
           >
-            {enemy?.type?.toUpperCase() || "ENEMY"}
+            {enemy?.type?.toUpperCase() || "OPPONENT"}
           </p>
           <div className="flex items-center gap-2 justify-end">
             <span
@@ -396,6 +500,23 @@ export const CombatScreen: FC<CombatScreenProps> = ({
       {/* Combat Arena */}
       <div className="flex-1 relative">
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+
+        {/* Waiting overlay */}
+        {turnPhase === "wait" && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+             <p
+                style={{
+                  fontFamily: '"Press Start 2P", monospace',
+                  fontSize: "16px",
+                  color: "#ffd700",
+                  textShadow: "2px 2px 0 #000",
+                }}
+                className="animate-pulse"
+              >
+                WAITING FOR OPPONENT...
+              </p>
+          </div>
+        )}
 
         {/* Result overlay */}
         {turnPhase === "result" && (

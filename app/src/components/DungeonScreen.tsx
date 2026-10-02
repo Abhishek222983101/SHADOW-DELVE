@@ -5,8 +5,11 @@
 
 import { FC, useRef, useEffect, useState, useCallback } from "react";
 import { PixelDungeonRenderer } from "../game/pixelRenderer";
-import { TileType, Position, positionToKey } from "../types/game";
+import { TileType, Position, positionToKey, Direction } from "../types/game";
 import { GRID_SIZE, MAX_HEALTH } from "../game/constants";
+import { getShadowDelveClient } from "../game/anchor";
+import { BN } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
 
 // ============================================
 // TYPES
@@ -26,6 +29,7 @@ interface Enemy {
 
 interface DungeonState {
   playerPos: Position;
+  opponentPos?: Position;
   health: number;
   gold: number;
   explored: Set<string>;
@@ -34,6 +38,7 @@ interface DungeonState {
   enemies: Enemy[];
   gameOver: boolean;
   victory: boolean;
+  dungeonGrid: TileType[][];
 }
 
 interface DungeonScreenProps {
@@ -42,179 +47,8 @@ interface DungeonScreenProps {
   initialHealth?: number;
   initialGold?: number;
   matchId?: string | null; // TEE match ID for PvP
-}
-
-// ============================================
-// DUNGEON GENERATOR - Creates larger, more interesting maps
-// ============================================
-
-const DUNGEON_WIDTH = 15;
-const DUNGEON_HEIGHT = 15;
-
-function generateDungeon(): TileType[][] {
-  const grid: TileType[][] = Array(DUNGEON_HEIGHT)
-    .fill(null)
-    .map(() => Array(DUNGEON_WIDTH).fill(TileType.Wall));
-
-  // Room-based generation
-  const rooms: { x: number; y: number; w: number; h: number }[] = [];
-
-  // Generate random rooms
-  for (let i = 0; i < 8; i++) {
-    const w = 4 + Math.floor(Math.random() * 4);
-    const h = 4 + Math.floor(Math.random() * 4);
-    const x = 1 + Math.floor(Math.random() * (DUNGEON_WIDTH - w - 2));
-    const y = 1 + Math.floor(Math.random() * (DUNGEON_HEIGHT - h - 2));
-
-    // Check for overlap
-    let overlap = false;
-    for (const room of rooms) {
-      if (
-        x < room.x + room.w + 1 &&
-        x + w + 1 > room.x &&
-        y < room.y + room.h + 1 &&
-        y + h + 1 > room.y
-      ) {
-        overlap = true;
-        break;
-      }
-    }
-
-    if (!overlap) {
-      rooms.push({ x, y, w, h });
-
-      // Carve out the room
-      for (let ry = y; ry < y + h; ry++) {
-        for (let rx = x; rx < x + w; rx++) {
-          grid[ry][rx] = TileType.Floor;
-        }
-      }
-    }
-  }
-
-  // Connect rooms with corridors
-  for (let i = 1; i < rooms.length; i++) {
-    const a = rooms[i - 1];
-    const b = rooms[i];
-
-    const ax = Math.floor(a.x + a.w / 2);
-    const ay = Math.floor(a.y + a.h / 2);
-    const bx = Math.floor(b.x + b.w / 2);
-    const by = Math.floor(b.y + b.h / 2);
-
-    // L-shaped corridor
-    if (Math.random() < 0.5) {
-      // Horizontal then vertical
-      for (let x = Math.min(ax, bx); x <= Math.max(ax, bx); x++) {
-        grid[ay][x] = TileType.Floor;
-      }
-      for (let y = Math.min(ay, by); y <= Math.max(ay, by); y++) {
-        grid[y][bx] = TileType.Floor;
-      }
-    } else {
-      // Vertical then horizontal
-      for (let y = Math.min(ay, by); y <= Math.max(ay, by); y++) {
-        grid[y][ax] = TileType.Floor;
-      }
-      for (let x = Math.min(ax, bx); x <= Math.max(ax, bx); x++) {
-        grid[by][x] = TileType.Floor;
-      }
-    }
-  }
-
-  // Place exit in the last room
-  if (rooms.length > 0) {
-    const lastRoom = rooms[rooms.length - 1];
-    const exitX = Math.floor(lastRoom.x + lastRoom.w / 2);
-    const exitY = Math.floor(lastRoom.y + lastRoom.h / 2);
-    grid[exitY][exitX] = TileType.Exit;
-  }
-
-  return grid;
-}
-
-function generateTreasures(grid: TileType[][], count: number): Treasure[] {
-  const treasures: Treasure[] = [];
-  const floorTiles: Position[] = [];
-
-  // Find all floor tiles
-  for (let y = 0; y < grid.length; y++) {
-    for (let x = 0; x < grid[y].length; x++) {
-      if (grid[y][x] === TileType.Floor) {
-        floorTiles.push({ x, y });
-      }
-    }
-  }
-
-  // Shuffle and pick
-  for (let i = floorTiles.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [floorTiles[i], floorTiles[j]] = [floorTiles[j], floorTiles[i]];
-  }
-
-  for (let i = 0; i < Math.min(count, floorTiles.length); i++) {
-    treasures.push({
-      position: floorTiles[i],
-      amount: 50 + Math.floor(Math.random() * 150),
-      collected: false,
-    });
-  }
-
-  return treasures;
-}
-
-function generateEnemies(
-  grid: TileType[][],
-  treasures: Treasure[],
-  count: number
-): Enemy[] {
-  const enemies: Enemy[] = [];
-  const floorTiles: Position[] = [];
-  const occupiedTiles = new Set(
-    treasures.map((t) => positionToKey(t.position))
-  );
-
-  // Find all floor tiles not occupied by treasures, and away from start
-  for (let y = 0; y < grid.length; y++) {
-    for (let x = 0; x < grid[y].length; x++) {
-      if (
-        grid[y][x] === TileType.Floor &&
-        !occupiedTiles.has(positionToKey({ x, y })) &&
-        (x > 5 || y > 5) // Not near start
-      ) {
-        floorTiles.push({ x, y });
-      }
-    }
-  }
-
-  // Shuffle and pick
-  for (let i = floorTiles.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [floorTiles[i], floorTiles[j]] = [floorTiles[j], floorTiles[i]];
-  }
-
-  for (let i = 0; i < Math.min(count, floorTiles.length); i++) {
-    const types: Enemy["type"][] = ["boss", "demon", "boss"]; // Make them scarier for demo
-    enemies.push({
-      position: floorTiles[i],
-      health: 50 + Math.floor(Math.random() * 50),
-      type: types[Math.floor(Math.random() * types.length)],
-    });
-  }
-
-  return enemies;
-}
-
-function findStartPosition(grid: TileType[][]): Position {
-  // Find first floor tile (should be in first room)
-  for (let y = 0; y < grid.length; y++) {
-    for (let x = 0; x < grid[y].length; x++) {
-      if (grid[y][x] === TileType.Floor) {
-        return { x, y };
-      }
-    }
-  }
-  return { x: 1, y: 1 };
+  opponentPubkey?: string | null;
+  isHost?: boolean;
 }
 
 // ============================================
@@ -226,26 +60,29 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
   onCombat,
   initialHealth = MAX_HEALTH,
   initialGold = 0,
+  matchId,
+  opponentPubkey,
+  isHost,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<PixelDungeonRenderer | null>(null);
   const animationRef = useRef<number>(0);
-
-  // Generate dungeon on mount
-  const [dungeon] = useState(() => generateDungeon());
-  const [startPos] = useState(() => findStartPosition(dungeon));
+  const client = getShadowDelveClient();
 
   const [state, setState] = useState<DungeonState>(() => ({
-    playerPos: startPos,
+    playerPos: { x: 1, y: 1 },
     health: initialHealth,
     gold: initialGold,
     explored: new Set<string>(),
     visible: new Set<string>(),
-    treasures: generateTreasures(dungeon, 6),
-    enemies: generateEnemies(dungeon, [], 4),
+    treasures: [],
+    enemies: [],
     gameOver: false,
     victory: false,
+    dungeonGrid: Array(15).fill(null).map(() => Array(15).fill(TileType.Wall)),
   }));
+
+  const [isCombatTriggered, setIsCombatTriggered] = useState(false);
 
   // Initialize renderer
   useEffect(() => {
@@ -255,9 +92,9 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
     rendererRef.current = renderer;
 
     renderer.init().then(() => {
-      renderer.setGridSize(DUNGEON_WIDTH, DUNGEON_HEIGHT);
+      renderer.setGridSize(15, 15);
       renderer.resize(window.innerWidth, window.innerHeight);
-      renderer.setPlayerPosition(startPos.x, startPos.y, true);
+      renderer.setPlayerPosition(1, 1, true);
     });
 
     const handleResize = () => {
@@ -269,7 +106,145 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
       window.removeEventListener("resize", handleResize);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [startPos]);
+  }, []);
+
+  // Poll TEE state
+  useEffect(() => {
+    const wallet = client.getWallet();
+    if (!matchId || !wallet) return;
+
+    let isPolling = true;
+
+    const pollState = async () => {
+      if (!isPolling || isCombatTriggered || state.gameOver) return;
+
+      try {
+        const matchBn = new BN(matchId);
+        
+        // Fetch all states concurrently
+        const [dungeonState, playerState, opponentState] = await Promise.all([
+          client.getDungeonStateTEE(matchBn),
+          client.getPlayerStateTEE(matchBn, wallet.publicKey),
+          opponentPubkey ? client.getPlayerStateTEE(matchBn, new PublicKey(opponentPubkey)) : Promise.resolve(null)
+        ]);
+
+        if (dungeonState && playerState) {
+          // Parse dungeon grid from contract state
+          const newGrid = Array(15).fill(null).map(() => Array(15).fill(TileType.Wall));
+          // Assuming dungeonState.grid is a flattened array or 2D array
+          // Based on type: { floor?: {}; wall?: {}; exit?: {} }[][]
+          if (dungeonState.grid && dungeonState.grid.length > 0) {
+            // Check if it's 1D or 2D
+            const is1D = !Array.isArray(dungeonState.grid[0]);
+            
+            for (let y = 0; y < 15; y++) {
+              for (let x = 0; x < 15; x++) {
+                let tileVal;
+                if (is1D) {
+                  // Fallback if somehow it's flat
+                  const flatGrid = dungeonState.grid as unknown as any[];
+                  tileVal = flatGrid[y * 15 + x];
+                } else {
+                  tileVal = dungeonState.grid[y][x];
+                }
+                
+                if (tileVal && typeof tileVal === 'object') {
+                  if ('floor' in tileVal) newGrid[y][x] = TileType.Floor;
+                  else if ('wall' in tileVal) newGrid[y][x] = TileType.Wall;
+                  else if ('exit' in tileVal) newGrid[y][x] = TileType.Exit;
+                }
+              }
+            }
+          }
+
+          const pState = playerState as any;
+          const playerPos: Position = { 
+            x: pState.position?.x ?? pState.position_x ?? pState.x ?? 1, 
+            y: pState.position?.y ?? pState.position_y ?? pState.y ?? 1 
+          };
+          let oppPos: Position | undefined;
+
+          if (opponentState) {
+            const oState = opponentState as any;
+            oppPos = { 
+              x: oState.position?.x ?? oState.position_x ?? oState.x ?? 1, 
+              y: oState.position?.y ?? oState.position_y ?? oState.y ?? 1 
+            };
+          }
+
+          console.log("[TEE Poll] Player position:", playerPos, "Opponent:", oppPos);
+
+          setState(prev => {
+            const newState = {
+              ...prev,
+              playerPos,
+              opponentPos: oppPos,
+              health: playerState.health,
+              gold: playerState.gold ? playerState.gold.toNumber() : prev.gold,
+              dungeonGrid: dungeonState.grid ? newGrid : prev.dungeonGrid,
+            };
+            
+            // Check for combat proximity
+            if (oppPos && !isCombatTriggered && !prev.gameOver && opponentState) {
+              const dx = Math.abs(playerPos.x - oppPos.x);
+              const dy = Math.abs(playerPos.y - oppPos.y);
+              if (dx <= 1 && dy <= 1) { // 1 tile radius
+                setIsCombatTriggered(true);
+                // Trigger combat
+                
+                // If we are host, initialize combat on-chain before transitioning
+                if (isHost) {
+                  client.initCombat(matchBn).then(() => {
+                    console.log("Combat initialized on L1");
+                    onCombat({
+                      position: oppPos,
+                      health: opponentState.health,
+                      type: "boss" // Opponent
+                    });
+                  }).catch((e: any) => {
+                    console.error("Failed to init combat", e);
+                    // Still transition, maybe it was already initialized
+                    onCombat({
+                      position: oppPos,
+                      health: opponentState.health,
+                      type: "boss" // Opponent
+                    });
+                  });
+                } else {
+                  // Guest just transitions
+                  onCombat({
+                    position: oppPos,
+                    health: opponentState.health,
+                    type: "boss" // Opponent
+                  });
+                }
+              }
+            }
+            
+            return newState;
+          });
+
+          // Update renderer
+          if (rendererRef.current) {
+             const isFirstUpdate = rendererRef.current.getPlayerWorldPos().x === 0 && rendererRef.current.getPlayerWorldPos().y === 0;
+             rendererRef.current.setPlayerPosition(playerPos.x, playerPos.y, isFirstUpdate);
+          }
+        }
+      } catch (err) {
+        console.error("Error polling TEE state:", err);
+      }
+
+      if (isPolling) {
+        setTimeout(pollState, 500); // Poll every 500ms
+      }
+    };
+
+    pollState();
+
+    return () => {
+      isPolling = false;
+    };
+  }, [matchId, client, opponentPubkey, isCombatTriggered, state.gameOver, onCombat, isHost]);
 
   // Update visibility when player moves
   useEffect(() => {
@@ -281,7 +256,7 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
       for (let dx = -radius; dx <= radius; dx++) {
         const x = state.playerPos.x + dx;
         const y = state.playerPos.y + dy;
-        if (x >= 0 && x < DUNGEON_WIDTH && y >= 0 && y < DUNGEON_HEIGHT) {
+        if (x >= 0 && x < 15 && y >= 0 && y < 15) {
           // Simple distance check for circular visibility
           if (dx * dx + dy * dy <= radius * radius + 1) {
             const key = positionToKey({ x, y });
@@ -297,13 +272,6 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
       visible: newVisible,
       explored: newExplored,
     }));
-
-    // Update renderer player position
-    rendererRef.current?.setPlayerPosition(
-      state.playerPos.x,
-      state.playerPos.y,
-      false
-    );
   }, [state.playerPos]);
 
   // Render loop
@@ -316,40 +284,26 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
       renderer.clear();
 
       // Draw all tiles
-      for (let y = 0; y < DUNGEON_HEIGHT; y++) {
-        for (let x = 0; x < DUNGEON_WIDTH; x++) {
+      for (let y = 0; y < 15; y++) {
+        for (let x = 0; x < 15; x++) {
           const key = positionToKey({ x, y });
           const isVisible = state.visible.has(key);
           const isExplored = state.explored.has(key);
 
-          renderer.drawTile(dungeon[y][x], x, y, isVisible, isExplored, time);
+          renderer.drawTile(state.dungeonGrid[y][x], x, y, isVisible, isExplored, time);
 
           // Draw exit
-          if (dungeon[y][x] === TileType.Exit && isVisible) {
+          if (state.dungeonGrid[y][x] === TileType.Exit && isVisible) {
             renderer.drawExit(x, y, time);
           }
         }
       }
 
-      // Draw treasures
-      for (const treasure of state.treasures) {
-        if (!treasure.collected) {
-          const key = positionToKey(treasure.position);
-          if (state.visible.has(key)) {
-            renderer.drawTreasure(
-              treasure.position.x,
-              treasure.position.y,
-              time
-            );
-          }
-        }
-      }
-
-      // Draw enemies (visible ones)
-      for (const enemy of state.enemies) {
-        const key = positionToKey(enemy.position);
+      // Draw opponent if visible
+      if (state.opponentPos) {
+        const key = positionToKey(state.opponentPos);
         if (state.visible.has(key)) {
-          renderer.drawPlayer(enemy.position.x, enemy.position.y, time, true);
+          renderer.drawPlayer(state.opponentPos.x, state.opponentPos.y, time, true); // True for enemy color
         }
       }
 
@@ -366,114 +320,106 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [state, dungeon]);
+  }, [state]);
 
   // Keyboard controls
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (state.gameOver) return;
+    let isMoving = false;
+    let lastMoveTime = 0;
+    const MOVE_COOLDOWN = 300; // ms to prevent wallet spam
+
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if (state.gameOver || isCombatTriggered || !matchId || !opponentPubkey || isMoving) return;
+      
+      const now = Date.now();
+      if (now - lastMoveTime < MOVE_COOLDOWN) return;
 
       const key = e.key.toLowerCase();
-      let dx = 0,
-        dy = 0;
+      let direction: Direction | null = null;
+      let dx = 0;
+      let dy = 0;
 
       switch (key) {
         case "w":
         case "arrowup":
+          direction = Direction.Up;
           dy = -1;
           break;
         case "s":
         case "arrowdown":
+          direction = Direction.Down;
           dy = 1;
           break;
         case "a":
         case "arrowleft":
+          direction = Direction.Left;
           dx = -1;
           break;
         case "d":
         case "arrowright":
+          direction = Direction.Right;
           dx = 1;
           break;
         default:
           return;
       }
 
-      e.preventDefault();
+      if (direction) {
+        e.preventDefault();
+        
+        // Optimistic UI update
+        const newX = state.playerPos.x + dx;
+        const newY = state.playerPos.y + dy;
+        
+        // Simple collision check before updating optimistically
+        if (newX >= 0 && newX < 15 && newY >= 0 && newY < 15 && 
+            state.dungeonGrid[newY][newX] !== TileType.Wall) {
+          
+          if (state.dungeonGrid[newY][newX] === TileType.Exit) {
+            console.log("Found exit, escaping!");
+            try {
+              await client.escape(matchId);
+              onExit();
+              return;
+            } catch (err) {
+              console.error("Failed to escape:", err);
+            }
+          }
 
-      setState((prev) => {
-        const newX = prev.playerPos.x + dx;
-        const newY = prev.playerPos.y + dy;
-
-        // Check bounds
-        if (
-          newX < 0 ||
-          newX >= DUNGEON_WIDTH ||
-          newY < 0 ||
-          newY >= DUNGEON_HEIGHT
-        ) {
-          return prev;
-        }
-
-        // Check collision with walls
-        if (dungeon[newY][newX] === TileType.Wall) {
-          return prev;
-        }
-
-        const newPos = { x: newX, y: newY };
-        let newGold = prev.gold;
-        let newTreasures = prev.treasures;
-
-        // Check treasure collection
-        const treasureIdx = prev.treasures.findIndex(
-          (t) => !t.collected && t.position.x === newX && t.position.y === newY
-        );
-        if (treasureIdx !== -1) {
-          newGold += prev.treasures[treasureIdx].amount;
-          newTreasures = [...prev.treasures];
-          newTreasures[treasureIdx] = {
-            ...newTreasures[treasureIdx],
-            collected: true,
-          };
-        }
-
-        // Check enemy collision - trigger combat!
-        const enemyIdx = prev.enemies.findIndex(
-          (e) => e.position.x === newX && e.position.y === newY
-        );
-        if (enemyIdx !== -1) {
-          // Mock prompt for combat in demo
-          setTimeout(() => onCombat(prev.enemies[enemyIdx]), 0);
-          // Remove enemy so we dont keep hitting it
-          const newEnemies = [...prev.enemies];
-          newEnemies.splice(enemyIdx, 1);
-          return { ...prev, enemies: newEnemies };
-
-        }
-
-        // Check exit
-        if (dungeon[newY][newX] === TileType.Exit) {
-          return {
+          setState(prev => ({
             ...prev,
-            playerPos: newPos,
-            gold: newGold,
-            treasures: newTreasures,
-            gameOver: true,
-            victory: true,
-          };
+            playerPos: { x: newX, y: newY }
+          }));
+          
+          if (rendererRef.current) {
+            rendererRef.current.setPlayerPosition(newX, newY, false);
+          }
         }
 
-        return {
-          ...prev,
-          playerPos: newPos,
-          gold: newGold,
-          treasures: newTreasures,
-        };
-      });
+        isMoving = true;
+        lastMoveTime = now;
+        
+        try {
+          await client.movePlayer(new BN(matchId), direction, new PublicKey(opponentPubkey));
+        } catch (err) {
+          console.error("Move error:", err);
+          // Revert optimistic update if transaction fails
+          setState(prev => ({
+             ...prev,
+             playerPos: state.playerPos // Revert to old position
+          }));
+          if (rendererRef.current) {
+             rendererRef.current.setPlayerPosition(state.playerPos.x, state.playerPos.y, false);
+          }
+        } finally {
+          isMoving = false;
+        }
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [state.gameOver, dungeon, onCombat]);
+  }, [state.gameOver, isCombatTriggered, matchId, opponentPubkey, client]);
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-black flex items-center justify-center">
@@ -569,7 +515,7 @@ export const DungeonScreen: FC<DungeonScreenProps> = ({
             color: "#666",
           }}
         >
-          WASD - MOVE | FIND THE EXIT
+          WASD - MOVE | FIND THE OPPONENT
         </p>
       </div>
 

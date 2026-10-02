@@ -100,6 +100,10 @@ export class PixelDungeonRenderer {
     this.isPlayerMoving = !immediate;
   }
 
+  getPlayerWorldPos(): { x: number; y: number } {
+    return { x: this.playerWorldX, y: this.playerWorldY };
+  }
+
   // Update camera to follow player
   private updateCamera(): void {
     // Target camera to center on player
@@ -394,31 +398,31 @@ export class PixelDungeonRenderer {
     time: number,
     isEnemy: boolean = false
   ): void {
-    // Use smooth world position instead of grid position
-    let screenX = this.playerWorldX - this.cameraX;
-    let screenY = this.playerWorldY - this.cameraY;
-    if (isEnemy) {
-      const pos = this.gridToScreen(gridX, gridY);
-      screenX = pos.x + this.renderSize / 2;
-      screenY = pos.y + this.renderSize / 2;
-    }
+    // Simplify player rendering to guarantee visibility
+    // Force the player to be visible regardless of fog/camera issues for now
+    let screenX = gridX * this.renderSize - this.cameraX + this.renderSize / 2;
+    let screenY = gridY * this.renderSize - this.cameraY + this.renderSize / 2;
 
-    if (this.playerSprite && this.playerSprite.isReady()) {
-      // Draw with glow
-      const glowColor = isEnemy ? "rgb(139, 58, 117)" : "rgb(255, 107, 53)";
-      const spriteScale = (this.renderSize / 40) * 0.8; // EVEN BIGGER scale
-      this.playerSprite.drawWithGlow(
-        this.ctx,
-        screenX,
-        screenY,
-        spriteScale,
-        glowColor,
-        0.6
-      );
-    } else {
-      // Fallback if sprite not loaded
-      this.drawFallbackPlayer(screenX, screenY, isEnemy, time);
-    }
+    // Draw a highly visible circle
+    this.ctx.fillStyle = isEnemy ? "#ff4444" : "#4ade80"; // Red for enemy, Green for player
+    this.ctx.beginPath();
+    this.ctx.arc(screenX, screenY, this.renderSize * 0.4, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // Add a bright border
+    this.ctx.strokeStyle = "#ffffff";
+    this.ctx.lineWidth = 3;
+    this.ctx.stroke();
+
+    // Small glowing effect
+    const glowGrad = this.ctx.createRadialGradient(
+      screenX, screenY, this.renderSize * 0.2,
+      screenX, screenY, this.renderSize * 0.8
+    );
+    glowGrad.addColorStop(0, isEnemy ? "rgba(255, 68, 68, 0.8)" : "rgba(74, 222, 128, 0.8)");
+    glowGrad.addColorStop(1, "transparent");
+    this.ctx.fillStyle = glowGrad;
+    this.ctx.fillRect(screenX - this.renderSize, screenY - this.renderSize, this.renderSize * 2, this.renderSize * 2);
   }
 
   private drawFallbackPlayer(

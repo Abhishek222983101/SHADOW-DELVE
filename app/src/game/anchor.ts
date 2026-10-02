@@ -354,6 +354,37 @@ export class ShadowDelveClient {
     }
   }
 
+  async getCombatState(matchId: BN): Promise<any | null> {
+    try {
+      const [matchPDA] = this.getMatchPDA(matchId);
+      const [combatPDA] = this.getCombatPDA(matchPDA);
+      // @ts-expect-error - IDL types might be missing this
+      const account = await this.program.account.combatState.fetch(combatPDA);
+      return account;
+    } catch (err) {
+      console.warn("Combat state not found on L1:", err);
+      return null;
+    }
+  }
+
+  async getCombatStateTEE(matchId: BN): Promise<any | null> {
+    const teeProgram = this.getTEEProgram();
+    if (!teeProgram) {
+      return this.getCombatState(matchId);
+    }
+
+    try {
+      const [matchPDA] = this.getMatchPDA(matchId);
+      const [combatPDA] = this.getCombatPDA(matchPDA);
+      // @ts-expect-error - IDL types are dynamically generated
+      const account = await teeProgram.account.combatState.fetch(combatPDA);
+      return account;
+    } catch (err) {
+      console.warn("Failed to fetch combat from TEE:", err);
+      return this.getCombatState(matchId);
+    }
+  }
+
   // ============================================
   // WRITE OPERATIONS - L1 (Match Setup)
   // ============================================
@@ -580,7 +611,8 @@ export class ShadowDelveClient {
   ): Promise<string> {
     if (!this.wallet) throw new Error("Wallet not connected");
 
-    const program = this.program; // Always run on L1 before delegation
+    // Use TEE program if available, fallback to L1
+    const program = this.getTEEProgram() || this.program;
 
     const [matchPDA] = this.getMatchPDA(matchId);
     const [playerPDA] = this.getPlayerStatePDA(matchPDA, this.wallet.publicKey);
@@ -607,7 +639,7 @@ export class ShadowDelveClient {
   async collectTreasure(matchId: BN): Promise<string> {
     if (!this.wallet) throw new Error("Wallet not connected");
 
-    const program = this.program; // Always run on L1 before delegation
+    const program = this.getTEEProgram() || this.program;
 
     const [matchPDA] = this.getMatchPDA(matchId);
     const [playerPDA] = this.getPlayerStatePDA(matchPDA, this.wallet.publicKey);
@@ -617,8 +649,8 @@ export class ShadowDelveClient {
       .collectTreasure()
       .accounts({
         playerState: playerPDA,
-        matchState: matchPDA,
         dungeonState: dungeonPDA,
+        matchState: matchPDA,
         player: this.wallet.publicKey,
       })
       .rpc();
@@ -679,7 +711,7 @@ export class ShadowDelveClient {
   ): Promise<string> {
     if (!this.wallet) throw new Error("Wallet not connected");
 
-    const program = this.program; // Always run on L1 before delegation
+    const program = this.getTEEProgram() || this.program;
 
     const [matchPDA] = this.getMatchPDA(matchId);
     const [combatPDA] = this.getCombatPDA(matchPDA);
@@ -692,6 +724,37 @@ export class ShadowDelveClient {
         matchState: matchPDA,
         combatState: combatPDA,
         player: this.wallet.publicKey,
+      })
+      .rpc();
+
+    return tx;
+  }
+
+  async resolveCombat(
+    matchId: BN,
+    player2Pubkey: PublicKey
+  ): Promise<string> {
+    if (!this.wallet) throw new Error("Wallet not connected");
+
+    const program = this.getTEEProgram() || this.program;
+
+    const [matchPDA] = this.getMatchPDA(matchId);
+    const [combatPDA] = this.getCombatPDA(matchPDA);
+    const [player1PDA] = this.getPlayerStatePDA(matchPDA, this.wallet.publicKey);
+    const [player2PDA] = this.getPlayerStatePDA(matchPDA, player2Pubkey);
+
+    // Mock VRF result for now
+    const vrfResult = Array(32).fill(0);
+
+    const tx = await program.methods
+      .resolveCombat(vrfResult)
+      .accounts({
+        matchState: matchPDA,
+        combatState: combatPDA,
+        player1State: player1PDA,
+        player2State: player2PDA,
+        player1: this.wallet.publicKey,
+        player2: player2Pubkey,
       })
       .rpc();
 
